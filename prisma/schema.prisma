@@ -1,0 +1,353 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RoleCode {
+  SUPER_ADMIN
+  CANTEEN_MANAGER
+  CUSTOMER
+}
+
+enum OrderStatus {
+  CREATED
+  PAYMENT_PENDING
+  PAID
+  PAYMENT_FAILED
+  CANCELLED
+  QR_GENERATED
+  CONFIRMED
+  PREPARING
+  READY
+  COMPLETED
+  EXPIRED
+  REFUNDED
+  ISSUE_REPORTED
+  DELAYED
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum QRStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  CANCELLED
+}
+
+enum AuditEntityType {
+  ORDER
+  PAYMENT
+  QR_TOKEN
+  USER
+  COLLEGE
+  MENU_ITEM
+  AUTH
+}
+
+enum AuditEventType {
+  STATE_TRANSITION
+  QR_SCANNED
+  QR_GENERATED
+  PAYMENT_INITIATED
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  REFUND_INITIATED
+  REFUND_COMPLETED
+  ISSUE_REPORTED
+  DELAY_MARKED
+  MANAGER_ASSIGNED
+  MENU_UPDATED
+  COLLEGE_CREATED
+  COLLEGE_UPDATED
+  AUTH_LOGIN
+  AUTH_REGISTER
+  REFRESH_TOKEN_ROTATED
+}
+
+model College {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  code         String   @unique
+  contactEmail String
+  contactPhone String?
+  address      String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  canteens           Canteen[]
+  users              User[]
+  managerAssignments ManagerAssignment[]
+  menuItems          MenuItem[]
+  orders             Order[]
+  payments           Payment[]
+  qrTokens           QRToken[]
+  refreshTokens      RefreshToken[]
+  auditLogs          AuditLog[]
+  orderItems         OrderItem[]
+
+  @@map("colleges")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  code        RoleCode @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id               String   @id @default(uuid())
+  tenantId         String?
+  roleId           String
+  email            String   @unique
+  passwordHash     String
+  fullName         String
+  phone            String
+  studentFacultyId String?
+  yearOfStudy      Int?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  college            College?            @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  role               Role                @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  customerOrders     Order[]             @relation("CustomerOrders")
+  managerAssignments ManagerAssignment[]
+  scannedQrTokens    QRToken[]           @relation("ScannedBy")
+  refreshTokens      RefreshToken[]
+  auditLogs          AuditLog[]          @relation("AuditActor")
+
+  @@index([tenantId, roleId])
+  @@index([tenantId, email])
+  @@map("users")
+}
+
+model Canteen {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  location  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  college            College             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  managerAssignments ManagerAssignment[]
+  menuItems          MenuItem[]
+  orders             Order[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("canteens")
+}
+
+model ManagerAssignment {
+  id        String   @id @default(uuid())
+  tenantId  String
+  managerId String
+  canteenId String
+  createdAt DateTime @default(now())
+
+  manager User    @relation(fields: [managerId], references: [id], onDelete: Cascade)
+  canteen Canteen @relation(fields: [canteenId], references: [id], onDelete: Cascade)
+  college College @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, managerId, canteenId])
+  @@index([tenantId, managerId])
+  @@index([tenantId, canteenId])
+  @@map("manager_assignments")
+}
+
+model MenuItem {
+  id            String   @id @default(uuid())
+  tenantId      String
+  canteenId     String
+  name          String
+  description   String?
+  category      String?
+  imageUrl      String?
+  priceInPaise  Int
+  stockQuantity Int      @default(0)
+  isAvailable   Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  college    College     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  canteen    Canteen     @relation(fields: [canteenId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@unique([tenantId, canteenId, name])
+  @@index([tenantId, canteenId, isAvailable])
+  @@map("menu_items")
+}
+
+model Order {
+  id                 String      @id @default(uuid())
+  tenantId           String
+  canteenId          String
+  customerId         String
+  status             OrderStatus @default(CREATED)
+  subtotalInPaise    Int
+  taxInPaise         Int         @default(0)
+  totalInPaise       Int
+  currency           String      @default("INR")
+  issueReason        String?
+  delayMarkedAt      DateTime?
+  paymentInitiatedAt DateTime?
+  paidAt             DateTime?
+  qrGeneratedAt      DateTime?
+  confirmedAt        DateTime?
+  completedAt        DateTime?
+  expiresAt          DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  college    College     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  canteen    Canteen     @relation(fields: [canteenId], references: [id], onDelete: Restrict)
+  customer   User        @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: Restrict)
+  orderItems OrderItem[]
+  payment    Payment?
+  qrToken    QRToken?
+  auditLogs  AuditLog[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, customerId, createdAt])
+  @@index([tenantId, canteenId, status])
+  @@index([status, expiresAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                String   @id @default(uuid())
+  tenantId          String
+  orderId           String
+  menuItemId        String?
+  menuItemName      String
+  imageUrl          String?
+  unitPriceInPaise  Int
+  quantity          Int
+  totalPriceInPaise Int
+  createdAt         DateTime @default(now())
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  college  College   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, orderId])
+  @@map("order_items")
+}
+
+model Payment {
+  id                    String        @id @default(uuid())
+  tenantId              String
+  orderId               String        @unique
+  provider              String
+  providerOrderId       String?       @unique
+  providerPaymentId     String?       @unique
+  providerSignature     String?
+  providerReceipt       String?
+  method                String?
+  idempotencyKey        String        @unique
+  amountInPaise         Int
+  refundedAmountInPaise Int           @default(0)
+  currency              String        @default("INR")
+  webhookEventId        String?
+  status                PaymentStatus @default(CREATED)
+  gatewayResponse       Json?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  college   College    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  auditLogs AuditLog[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, providerOrderId])
+  @@map("payments")
+}
+
+model QRToken {
+  id          String    @id @default(uuid())
+  tenantId    String
+  orderId     String    @unique
+  tokenHash   String    @unique
+  signedToken String
+  nonce       String
+  expiresAt   DateTime
+  scannedAt   DateTime?
+  scannedById String?
+  status      QRStatus  @default(ACTIVE)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  college   College    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  scannedBy User?      @relation("ScannedBy", fields: [scannedById], references: [id], onDelete: SetNull)
+  auditLogs AuditLog[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, expiresAt])
+  @@index([tenantId, nonce])
+  @@map("qr_tokens")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  tenantId  String?
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  college College? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id            String          @id @default(uuid())
+  tenantId      String?
+  orderId       String?
+  paymentId     String?
+  qrTokenId     String?
+  actorUserId   String?
+  entityType    AuditEntityType
+  eventType     AuditEventType
+  previousState String?
+  newState      String?
+  reason        String?
+  metadata      Json?
+  createdAt     DateTime        @default(now())
+
+  college College? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  order   Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  qrToken QRToken? @relation(fields: [qrTokenId], references: [id], onDelete: Cascade)
+  actor   User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, orderId])
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}

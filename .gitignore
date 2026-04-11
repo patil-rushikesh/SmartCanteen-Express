@@ -6,6 +6,7 @@
 /frontend/dist
 /frontend/*.js
 /frontend/*.d.ts
+/frontend/.env
 /.env
 /.env.local
 /.env.*.local

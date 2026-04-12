@@ -14,7 +14,14 @@ export const initiatePayment = asyncHandler(async (req: Request, res: Response) 
 });
 
 export const verifyPayment = asyncHandler(async (req: Request, res: Response) => {
-  const result = await container.paymentService.verifyPaymentSignature(req.body);
+  const result = await container.paymentService.confirmPayment({
+    tenantId: req.tenantId!,
+    customerId: req.user!.userId,
+    providerOrderId: req.body.providerOrderId,
+    providerPaymentId: req.body.providerPaymentId,
+    signature: req.body.signature
+  });
+
   res.status(200).json({ success: true, data: result });
 });
 

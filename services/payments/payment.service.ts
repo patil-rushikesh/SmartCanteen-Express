@@ -112,6 +112,96 @@ export class PaymentService {
     return payment;
   }
 
+  async confirmPayment(input: {
+    tenantId: string;
+    customerId: string;
+    providerOrderId: string;
+    providerPaymentId: string;
+    signature: string;
+  }) {
+    // 1. Verify the payment signature
+    const isValid = this.paymentProvider.verifyPayment({
+      providerOrderId: input.providerOrderId,
+      providerPaymentId: input.providerPaymentId,
+      signature: input.signature
+    });
+
+    if (!isValid) {
+      throw new AppError(400, 'Invalid payment signature');
+    }
+
+    // 2. Look up the payment record by providerOrderId
+    const payment = await this.paymentRepository.findByProviderOrderId(input.providerOrderId);
+    if (!payment) {
+      throw new AppError(404, `Payment not found for provider order ${input.providerOrderId}`);
+    }
+
+    // Verify the payment belongs to the customer who is confirming it
+    const order = await this.orderRepository.findCustomerOrder(payment.orderId, input.tenantId, input.customerId);
+    if (!order) {
+      throw new AppError(403, 'You do not have access to this order');
+    }
+
+    // 3. Update payment status to SUCCESS (if not already)
+    if (payment.status !== PaymentStatus.SUCCESS) {
+      await this.paymentRepository.update(payment.id, {
+        status: PaymentStatus.SUCCESS,
+        providerPaymentId: input.providerPaymentId,
+        method: 'razorpay_direct'
+      });
+
+      // 4a. Transition order: PAYMENT_PENDING → PAID
+      if (payment.order.status === OrderStatus.PAYMENT_PENDING) {
+        await this.orderRepository.updateStatus(payment.orderId, input.tenantId, OrderStatus.PAID, {
+          paidAt: new Date()
+        });
+        await this.auditService.recordOrderTransition({
+          tenantId: input.tenantId,
+          orderId: payment.orderId,
+          actorUserId: input.customerId,
+          previousState: OrderStatus.PAYMENT_PENDING,
+          newState: OrderStatus.PAID,
+          reason: 'Payment confirmed by customer'
+        });
+      }
+
+      // 4b. Generate QR and transition to QR_GENERATED
+      const qrToken = await this.qrService.generateForPaidOrder(payment.orderId, input.tenantId);
+      await this.orderRepository.updateStatus(payment.orderId, input.tenantId, OrderStatus.QR_GENERATED, {
+        qrGeneratedAt: new Date(),
+        expiresAt: qrToken.expiresAt
+      });
+      await this.auditService.recordOrderTransition({
+        tenantId: input.tenantId,
+        orderId: payment.orderId,
+        actorUserId: input.customerId,
+        previousState: OrderStatus.PAID,
+        newState: OrderStatus.QR_GENERATED,
+        reason: 'QR generated after payment confirmation'
+      });
+
+      await this.auditService.recordEvent({
+        tenantId: input.tenantId,
+        orderId: payment.orderId,
+        paymentId: payment.id,
+        actorUserId: input.customerId,
+        entityType: AuditEntityType.PAYMENT,
+        eventType: AuditEventType.PAYMENT_SUCCEEDED,
+        metadata: { method: 'customer_verification', providerPaymentId: input.providerPaymentId }
+      });
+    }
+
+    // 5. Return the full updated payment/order data
+    const updatedPayment = await this.paymentRepository.findByOrderId(payment.orderId);
+    const updatedOrder = await this.orderRepository.findCustomerOrder(payment.orderId, input.tenantId, input.customerId);
+
+    return {
+      payment: updatedPayment,
+      order: updatedOrder
+    };
+  }
+
+  // Kept for backward compatibility with webhooks
   verifyPaymentSignature(input: {
     providerOrderId: string;
     providerPaymentId: string;

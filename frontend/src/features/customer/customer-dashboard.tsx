@@ -31,8 +31,7 @@ import { appConfig } from '@/lib/config';
 import { formatCurrencyFromPaise, formatDateTime, formatDateShort } from '@/lib/format';
 import { orderStatusMeta } from '@/lib/order';
 import {
-  ensureRazorpayCheckout,
-  waitForWebhookSettlement
+  ensureRazorpayCheckout
 } from '@/lib/payments';
 import { uniqueBy } from '@/lib/utils';
 import type { CartItem, MenuItem, OrderRecord, QrToken } from '@/types/api';
@@ -363,17 +362,21 @@ export const CustomerDashboard = () => {
             razorpay_signature: string;
           }) => {
             try {
-              await api.customer.verifyPayment({
+              const result = await api.customer.verifyPayment({
                 providerOrderId: response.razorpay_order_id,
                 providerPaymentId: response.razorpay_payment_id,
                 signature: response.razorpay_signature
               });
+
+              // Invalidate orders to refetch with updated payment/QR status
               await queryClient.invalidateQueries({ queryKey: ['customer', 'orders'] });
+
               pushToast({
-                title: 'Payment submitted',
-                description: 'Verification succeeded. Waiting for the provider webhook to settle the order.',
+                title: 'Payment confirmed',
+                description: `Your order has been confirmed and your QR code is ready. Order: ${result.order.id.slice(0, 8)}...`,
                 tone: 'success'
               });
+
               resolve();
             } catch (error) {
               reject(error);

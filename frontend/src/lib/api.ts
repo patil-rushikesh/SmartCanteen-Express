@@ -225,7 +225,7 @@ export const api = {
       providerOrderId: string;
       providerPaymentId: string;
       signature: string;
-    }) => fetchJson<{ verified: true }>('/customer/payments/verify', { method: 'POST', body: payload }),
+    }) => fetchJson<{ payment: OrderPayment; order: OrderRecord }>('/customer/payments/verify', { method: 'POST', body: payload }),
     reportIssue: (orderId: string, reason: string) =>
       fetchJson<OrderRecord>(`/customer/orders/${orderId}/issues`, { method: 'POST', body: { reason } })
   },

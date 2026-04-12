@@ -145,7 +145,12 @@ export class UserRepository {
   findByEmail(email: string) {
     return this.db.user.findUnique({
       where: { email },
-      include: { role: true }
+      include: {
+        role: true,
+        managerAssignments: {
+          include: { canteen: true }
+        }
+      }
     });
   }
 

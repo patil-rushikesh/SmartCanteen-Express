@@ -1,4 +1,5 @@
 import { AppError } from '../../utils/errors.js';
+import { randomUUID } from 'node:crypto';
 import { assertValidTransition } from '../../utils/order-state-machine.js';
 import {
   CanteenRepository,
@@ -33,6 +34,35 @@ export class ManagerService {
     }
   }
 
+  private parseImageDataUrl(imageBase64: string): { buffer: Buffer; contentType: string; extension: string } {
+    const matches = imageBase64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+    if (!matches) {
+      throw new AppError(400, 'Invalid image payload. Expected a base64 data URL.');
+    }
+
+    const contentType = matches[1];
+    const base64Payload = matches[2];
+    const buffer = Buffer.from(base64Payload, 'base64');
+    const extensionMap: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp'
+    };
+    const extension = extensionMap[contentType] ?? 'bin';
+
+    return { buffer, contentType, extension };
+  }
+
+  private buildMenuImageKey(tenantId: string, extension: string): string {
+    return `${env.S3_KEY_PREFIX}/${tenantId}/menu/${randomUUID()}.${extension}`;
+  }
+
+  private async uploadMenuImage(tenantId: string, imageBase64: string) {
+    const parsed = this.parseImageDataUrl(imageBase64);
+    const key = this.buildMenuImageKey(tenantId, parsed.extension);
+    return storageProvider.uploadFile(parsed.buffer, key, parsed.contentType);
+  }
+
   async listMenuItems(tenantId: string, managerId: string, canteenId?: string) {
     const assignments = await this.managerAssignmentRepository.listForManager(tenantId, managerId);
     const canteenIds = assignments.map((assignment) => assignment.canteenId);
@@ -62,10 +92,7 @@ export class ManagerService {
     await this.ensureManagerAccess(input.tenantId, input.managerId, input.canteenId);
 
     const uploadedImage = input.imageBase64
-      ? await storageProvider.uploadFile({
-          file: input.imageBase64,
-          folder: `${env.CLOUDINARY_FOLDER}/${input.tenantId}/menu`
-        })
+      ? await this.uploadMenuImage(input.tenantId, input.imageBase64)
       : null;
 
     const menuItem = await this.menuItemRepository.create({
@@ -114,10 +141,7 @@ export class ManagerService {
     await this.ensureManagerAccess(input.tenantId, input.managerId, existing.canteenId);
 
     const uploadedImage = input.imageBase64
-      ? await storageProvider.uploadFile({
-          file: input.imageBase64,
-          folder: `${env.CLOUDINARY_FOLDER}/${input.tenantId}/menu`
-        })
+      ? await this.uploadMenuImage(input.tenantId, input.imageBase64)
       : null;
 
     const updated = await this.menuItemRepository.update(existing.id, input.tenantId, {

@@ -70,7 +70,7 @@ All repositories abstract Prisma Client, enabling easy swapping of ORM.
 | Service | Purpose | Integration |
 |---------|---------|-------------|
 | **Razorpay** | Payment processing | `RazorpayPaymentProvider` - abstract payment interface |
-| **Cloudinary** | Image storage & CDN | Direct SDK integration for menu images |
+| **AWS S3** | Image storage & delivery | SDK v3 integration for menu images |
 | **Redis** | Caching & sessions | Cart data, QR token caching, session hints |
 | **PostgreSQL** | Primary data store | Prisma adapter with connection pooling |
 
@@ -258,8 +258,7 @@ Redis currently used, can be swapped with:
 - DynamoDB
 
 ### Storage Provider Interface
-Cloudinary used for images, can swap with:
-- AWS S3
+AWS S3 used for images, can swap with:
 - Azure Blob Storage
 - MinIO
 
@@ -283,7 +282,7 @@ Loaded via `.env` file:
 - `DATABASE_URL`: PostgreSQL connection string
 - `REDIS_URL`: Redis connection
 - `RAZORPAY_KEY_ID/SECRET`: Payment provider credentials
-- `CLOUDINARY_*`: Image hosting credentials
+- `S3_BUCKET` and `AWS_REGION`: Image hosting configuration
 - `CORS_ORIGIN`: Allowed frontend origins
 - `PORT`: Server port (default: 8080)
 
@@ -546,9 +545,8 @@ JWT_SECRET=your_jwt_secret_key
 RAZORPAY_KEY_ID=your_razorpay_key
 RAZORPAY_KEY_SECRET=your_razorpay_secret
 RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
+S3_BUCKET=your_asset_bucket
+AWS_REGION=ap-south-1
 CORS_ORIGIN=http://localhost:5173
 ```
 

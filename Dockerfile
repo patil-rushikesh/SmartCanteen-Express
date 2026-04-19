@@ -1,56 +1,45 @@
-
-# ----------- BASE -----------
-FROM node:22-alpine AS base
+# ----------- BUILDER -----------
+FROM node:20-alpine AS builder
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# ----------- BUILD -----------
-FROM base AS build
-
-# Copy only dependency-related files first for better cache usage
-COPY package.json pnpm-lock.yaml tsconfig.json prisma.config.ts ./
+COPY package.json pnpm-lock.yaml tsconfig.json prisma.config.ts pnpm-workspace.yaml ./
 COPY prisma ./prisma
+COPY frontend/package.json ./frontend/package.json
 
-RUN pnpm install --frozen-lockfile --ignore-scripts
+RUN pnpm install --frozen-lockfile
 
-# Now copy the rest of the source code
 COPY . .
 
-RUN pnpm prisma:generate
 RUN pnpm build
 
 # ----------- RUNTIME -----------
-FROM node:22-alpine AS runtime
+FROM node:20-alpine AS runtime
 
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Install netcat for DB readiness check
-RUN apk add --no-cache netcat-openbsd
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY frontend/package.json ./frontend/package.json
+COPY prisma ./prisma
 
-# Copy only production artifacts and dependencies
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/prisma.config.ts ./prisma.config.ts
+RUN pnpm install --prod --frozen-lockfile
 
-# Add entrypoint
+COPY --from=builder /app/dist ./dist
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
-# Create non-root user
 RUN addgroup -S nodejs && adduser -S smartcanteen -G nodejs
 USER smartcanteen
 

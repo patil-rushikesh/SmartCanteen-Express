@@ -169,10 +169,9 @@ Audit logging captures:
    - `RAZORPAY_KEY_ID`
    - `RAZORPAY_KEY_SECRET`
    - `RAZORPAY_WEBHOOK_SECRET`
-   - `REDIS_URL` (optional but recommended)
-   - `CLOUDINARY_CLOUD_NAME`
-   - `CLOUDINARY_API_KEY`
-   - `CLOUDINARY_API_SECRET`
+   - `REDIS_URL`
+   - `S3_BUCKET`
+   - `AWS_REGION`
 3. Generate Prisma client: `pnpm prisma:generate`
 4. Apply schema: `pnpm prisma:migrate dev` or `pnpm prisma:db:push`
 5. Seed sample data: `pnpm seed`

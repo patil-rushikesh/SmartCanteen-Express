@@ -1,0 +1,8 @@
+.env
+.env.*
+node_modules
+dist
+.git
+.gitignore
+frontend/node_modules
+frontend/dist

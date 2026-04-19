@@ -2,34 +2,10 @@ import { createClient, RedisClientType } from 'redis';
 import { CacheProvider } from '../../interfaces/cache-provider.js';
 import { env } from '../../utils/env.js';
 
-class InMemoryCacheProvider implements CacheProvider {
-  private readonly store = new Map<string, { expiresAt?: number; value: unknown }>();
-
-  async get<T>(key: string): Promise<T | null> {
-    const entry = this.store.get(key);
-    if (!entry) {
-      return null;
-    }
-
-    if (entry.expiresAt && entry.expiresAt <= Date.now()) {
-      this.store.delete(key);
-      return null;
-    }
-
-    return entry.value as T;
-  }
-
-  async set<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
-    this.store.set(key, {
-      value,
-      expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined
-    });
-  }
-
-  async del(key: string): Promise<void> {
-    this.store.delete(key);
-  }
-}
+const sleep = async (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 class RedisCacheProvider implements CacheProvider {
   constructor(private readonly client: RedisClientType) {}
@@ -54,23 +30,78 @@ class RedisCacheProvider implements CacheProvider {
   }
 }
 
-let redisClient: RedisClientType | null = null;
-
-const createCacheProvider = (): CacheProvider => {
-  if (!env.REDIS_URL) {
-    return new InMemoryCacheProvider();
+class UninitializedCacheProvider implements CacheProvider {
+  private throwNotInitialized(): never {
+    throw new Error('Cache provider not initialized. Redis connection must be established before cache usage.');
   }
 
-  redisClient = createClient({ url: env.REDIS_URL });
-  redisClient.on('error', (error) => console.error('Redis error:', error));
-  redisClient.connect().catch((error) => {
-    console.error('Redis connect failed, using in-memory cache fallback:', error);
+  async get<T>(_key: string): Promise<T | null> {
+    this.throwNotInitialized();
+  }
+
+  async set<T>(_key: string, _value: T, _ttlSeconds?: number): Promise<void> {
+    this.throwNotInitialized();
+  }
+
+  async del(_key: string): Promise<void> {
+    this.throwNotInitialized();
+  }
+}
+
+let redisClient: RedisClientType | null = null;
+export let cacheProvider: CacheProvider = new UninitializedCacheProvider();
+
+export const initializeCacheProvider = async (): Promise<void> => {
+  if (redisClient?.isOpen) {
+    cacheProvider = new RedisCacheProvider(redisClient);
+    return;
+  }
+
+  redisClient = createClient({
+    url: env.REDIS_URL,
+    socket: {
+      reconnectStrategy: (retries) => {
+        const delay = Math.min(100 * 2 ** retries, env.REDIS_RECONNECT_MAX_DELAY_MS);
+        return delay;
+      }
+    }
   });
 
-  return new RedisCacheProvider(redisClient);
+  redisClient.on('ready', () => console.log('[Redis] Connection ready'));
+  redisClient.on('reconnecting', () => console.warn('[Redis] Reconnecting...'));
+  redisClient.on('error', (error) => console.error('[Redis] Client error:', error));
+  redisClient.on('end', () => console.warn('[Redis] Connection closed'));
+
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= env.REDIS_CONNECT_RETRIES; attempt += 1) {
+    try {
+      await redisClient.connect();
+      cacheProvider = new RedisCacheProvider(redisClient);
+      return;
+    } catch (error) {
+      lastError = error as Error;
+
+      if (attempt < env.REDIS_CONNECT_RETRIES) {
+        const waitMs = env.REDIS_CONNECT_BASE_DELAY_MS * 2 ** (attempt - 1);
+        console.warn(`[Redis] Connect attempt ${attempt}/${env.REDIS_CONNECT_RETRIES} failed. Retrying in ${waitMs}ms.`);
+        await sleep(waitMs);
+      }
+    }
+  }
+
+  throw new Error(
+    `[Redis] Unable to establish connection after ${env.REDIS_CONNECT_RETRIES} attempts: ${lastError?.message ?? 'Unknown error'}`
+  );
 };
 
-export const cacheProvider = createCacheProvider();
+export const shutdownCacheProvider = async (): Promise<void> => {
+  if (redisClient?.isOpen) {
+    await redisClient.quit();
+  }
+
+  redisClient = null;
+  cacheProvider = new UninitializedCacheProvider();
+};
 
 export const cacheKeys = {
   cart: (tenantId: string, userId: string) => `cart:${tenantId}:${userId}`,

@@ -4,82 +4,22 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: smart-canteen-app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    env_file:
-      - .env
     environment:
       NODE_ENV: production
       PORT: 8080
       CORS_ORIGIN: http://localhost:5173,http://127.0.0.1:5173
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-smart_canteen}?schema=public
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
       RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
-      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
-      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
-      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
-      CLOUDINARY_FOLDER: ${CLOUDINARY_FOLDER}
+      AWS_REGION: ${AWS_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_KEY_PREFIX: ${S3_KEY_PREFIX:-smart-canteen}
+      S3_URL_MODE: ${S3_URL_MODE:-public}
+      S3_PRESIGNED_URL_TTL_SECONDS: ${S3_PRESIGNED_URL_TTL_SECONDS:-3600}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
       PAYMENT_PROVIDER_MODE: ${PAYMENT_PROVIDER_MODE:-fake}
     ports:
       - "${PORT:-8080}:8080"
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: .
-      dockerfile: ./frontend/Dockerfile
-    container_name: smart-canteen-frontend
-    env_file:
-      - .env
-    volumes:
-      - ./frontend:/app/frontend
-      - /app/node_modules
-    depends_on:
-      - app
-    ports:
-      - "${FRONTEND_PORT:-5173}:5173"
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: smart-canteen-postgres
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-smart_canteen}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-smart_canteen}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    container_name: smart-canteen-redis
-    command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-  redis_data:
+    restart: always

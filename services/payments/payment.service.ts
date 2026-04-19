@@ -31,11 +31,6 @@ export class PaymentService {
       throw new AppError(404, 'Order not found');
     }
 
-    const initiatableStates: OrderStatus[] = [OrderStatus.CREATED, OrderStatus.PAYMENT_FAILED];
-    if (!initiatableStates.includes(order.status)) {
-      throw new AppError(409, `Payment cannot be initiated from order state ${order.status}`);
-    }
-
     const existingByKey = await this.paymentRepository.findByIdempotencyKey(input.idempotencyKey);
     if (existingByKey) {
       return existingByKey;
@@ -45,6 +40,11 @@ export class PaymentService {
     const reusablePaymentStates: PaymentStatus[] = [PaymentStatus.PENDING, PaymentStatus.SUCCESS];
     if (existingPayment && reusablePaymentStates.includes(existingPayment.status)) {
       return existingPayment;
+    }
+
+    const initiatableStates: OrderStatus[] = [OrderStatus.CREATED, OrderStatus.PAYMENT_FAILED, OrderStatus.PAYMENT_PENDING];
+    if (!initiatableStates.includes(order.status)) {
+      throw new AppError(409, `Payment cannot be initiated from order state ${order.status}`);
     }
 
     const providerOrder = await this.paymentProvider.initiatePayment({
@@ -58,10 +58,21 @@ export class PaymentService {
       }
     });
 
-    assertValidTransition(order.status, OrderStatus.PAYMENT_PENDING);
-    await this.orderRepository.updateStatus(order.id, input.tenantId, OrderStatus.PAYMENT_PENDING, {
-      paymentInitiatedAt: new Date()
-    });
+    if (order.status !== OrderStatus.PAYMENT_PENDING) {
+      assertValidTransition(order.status, OrderStatus.PAYMENT_PENDING);
+      await this.orderRepository.updateStatus(order.id, input.tenantId, OrderStatus.PAYMENT_PENDING, {
+        paymentInitiatedAt: new Date()
+      });
+
+      await this.auditService.recordOrderTransition({
+        tenantId: input.tenantId,
+        orderId: order.id,
+        actorUserId: input.customerId,
+        previousState: order.status,
+        newState: OrderStatus.PAYMENT_PENDING,
+        reason: 'Payment initiated'
+      });
+    }
 
     const payment = existingPayment
       ? await this.paymentRepository.update(existingPayment.id, {
@@ -86,15 +97,6 @@ export class PaymentService {
           college: { connect: { id: input.tenantId } },
           order: { connect: { id: order.id } }
         });
-
-    await this.auditService.recordOrderTransition({
-      tenantId: input.tenantId,
-      orderId: order.id,
-      actorUserId: input.customerId,
-      previousState: order.status,
-      newState: OrderStatus.PAYMENT_PENDING,
-      reason: 'Payment initiated'
-    });
 
     await this.auditService.recordEvent({
       tenantId: input.tenantId,

@@ -3,9 +3,6 @@ set -e
 
 echo "Waiting for database..."
 
-until nc -z smart-canteen-postgres 5432; do
-  sleep 2
-done
 
 echo "Database ready"
 

@@ -17,6 +17,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 RUN pnpm build
+RUN pnpm prune --prod
 
 # ----------- RUNTIME -----------
 FROM node:20-alpine AS runtime
@@ -30,12 +31,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY frontend/package.json ./frontend/package.json
-COPY prisma ./prisma
-
-RUN pnpm install --prod --frozen-lockfile
-
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh

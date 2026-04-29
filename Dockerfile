@@ -28,6 +28,7 @@ RUN pnpm build
 FROM node:22-alpine AS runtime
 
 ENV NODE_ENV=production
+ENV PORT=8080
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 

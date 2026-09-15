@@ -1,5 +1,7 @@
 # Exam demonstration script
 
+Start with [DEPLOYMENT.md](DEPLOYMENT.md) for the live application, monitoring dashboard and successful workflow runs.
+
 ## Opening explanation (one minute)
 
 “This is a two-repository React and Express application. GitHub Actions tests the code and builds Docker images. CloudFormation bootstraps Terraform's state and AWS authentication. Terraform provisions the application infrastructure. The ALB routes requests to ECS Fargate tasks. Nginx serves React, PM2 supervises Express, RDS stores orders, Redis shares carts, SSM stores encrypted credentials, and CloudWatch monitors the system. Ansible runs the backend release and health verification.”

@@ -1,5 +1,7 @@
 # Smart Canteen: exam deployment
 
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the deployed URL, verified results, and GitHub run evidence.
+
 ## Tool responsibilities
 
 | Tool | What it demonstrates | Source |
@@ -150,6 +152,14 @@ ansible-playbook -i localhost, infra/ansible/verify.yml
 
 Follow [EXAM_DEMO.md](EXAM_DEMO.md) for the presentation sequence and monitoring commands.
 
+To exercise one complete simulated order after seeding:
+
+```sh
+python3 infra/scripts/smoke_exam.py "$APP_URL" --create-demo-order
+```
+
+This intentionally creates and completes one order using the seeded student and manager accounts. It checks cart storage, fake payment, QR confirmation and fulfillment. It is restricted to the Mumbai exam ALB hostname and requires frontend fake-payment configuration. Tokens and passwords are never printed.
+
 ## Rotation, rollback, and teardown
 
 - Updating SSM does not change running containers. Redeploy ECS tasks after updating JWT/provider values. For database password rotation, update SSM, increment `database_password_version`, apply Terraform, then redeploy the backend. Schedule this operation because old tasks still have the old password.
@@ -160,7 +170,7 @@ Follow [EXAM_DEMO.md](EXAM_DEMO.md) for the presentation sequence and monitoring
 
 ## Verification scope
 
-Local validation covers TypeScript builds, runtime URL construction, migration/rollout ordering tests, Terraform schema validation, CloudFormation lint, workflow lint and Ansible syntax. Docker execution and live AWS plans/releases require the Docker daemon and authenticated AWS account. No live deployment is implied by these files.
+Local validation covers TypeScript builds, runtime URL construction, fake-payment boundaries, migration/rollout ordering tests, Terraform schema validation, CloudFormation lint, workflow lint and Ansible syntax. The first live deployment and its Docker, AWS, browser and business-flow checks are recorded in [DEPLOYMENT.md](DEPLOYMENT.md). Rerun the checks after subsequent changes.
 
 ## Implementation references
 

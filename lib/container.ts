@@ -16,6 +16,8 @@ import {
 import { AuditService } from '../services/shared/audit.service.js';
 import { QrService } from '../services/shared/qr.service.js';
 import { RazorpayPaymentProvider } from '../services/payments/razorpay-payment-provider.js';
+import { FakePaymentProvider } from '../services/payments/fake-payment-provider.js';
+import { env } from '../utils/env.js';
 import { PaymentService } from '../services/payments/payment.service.js';
 import { AuthService } from '../services/auth/auth.service.js';
 import { AdminService } from '../services/admin/admin.service.js';
@@ -37,7 +39,9 @@ const analyticsRepository = new AnalyticsRepository(prisma);
 
 const auditService = new AuditService(auditLogRepository);
 const qrService = new QrService(qrTokenRepository, orderRepository, auditService);
-const paymentProvider = new RazorpayPaymentProvider();
+const paymentProvider = env.PAYMENT_PROVIDER_MODE === 'fake'
+  ? new FakePaymentProvider()
+  : new RazorpayPaymentProvider();
 const paymentService = new PaymentService(
   paymentRepository,
   orderRepository,

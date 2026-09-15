@@ -23,6 +23,3 @@ export const assertValidTransition = (currentState: OrderStatus, nextState: Orde
     throw new AppError(409, `Invalid order state transition from ${currentState} to ${nextState}`);
   }
 };
-
-export const canTransition = (currentState: OrderStatus, nextState: OrderStatus) =>
-  transitions[currentState].includes(nextState);

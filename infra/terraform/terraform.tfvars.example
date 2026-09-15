@@ -1,0 +1,10 @@
+# Exam settings: HTTP with fake payments; no domain or certificate needed.
+aws_region = "ap-south-1"
+environment = "exam"
+github_environment = "exam"
+github_oidc_provider_arn = "arn:aws:iam::645024328844:oidc-provider/token.actions.githubusercontent.com"
+enable_https = false
+high_availability = false
+database_multi_az = false
+payment_mode = "fake"
+deletion_protection = false

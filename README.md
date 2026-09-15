@@ -47,7 +47,7 @@ lib/
 prisma/
 scripts/
 index.ts
-backend_summary.md
+README.md
 ```
 
 ## Database Design
@@ -174,8 +174,8 @@ Audit logging captures:
    - `CLOUDINARY_API_KEY`
    - `CLOUDINARY_API_SECRET`
 3. Generate Prisma client: `pnpm prisma:generate`
-4. Apply schema: `pnpm prisma:migrate dev` or `pnpm prisma:db:push`
-5. Seed sample data: `pnpm seed`
+4. Apply schema: `pnpm prisma:migrate` or `pnpm prisma:db:push`
+5. Build and seed sample data: `pnpm build && pnpm seed`
 6. Start locally: `pnpm dev`
 
 Seeded credentials:
@@ -196,10 +196,10 @@ Storage provider swap:
 - Implement `StorageProvider` from `interfaces/storage-provider.ts`.
 - Replace the adapter in `services/shared/storage.service.ts`.
 
-Redis/BullMQ growth path:
+Background job extension:
 
 - `services/shared/cache.service.ts` already abstracts Redis.
-- Add BullMQ workers for QR expiry, delayed-order checks, analytics rollups, or webhook retry handling without changing controller logic.
+- A job queue can be added later for QR expiry, delayed-order checks, analytics rollups, or webhook retries; no queue dependency is currently installed.
 
 Multi-canteen growth:
 
@@ -213,3 +213,20 @@ Future additions:
 - add tenant-specific tax and business hour rules
 - add inventory reservation and stock decrement policies
 - add notification workers for order status changes
+
+## Frontend and validation
+
+The frontend lives in the sibling `../Frontend` repository. Keep both directories under the same parent for the convenience scripts and Docker Compose.
+
+- Install frontend dependencies: `pnpm --dir ../Frontend install --frozen-lockfile`
+- Start frontend: `pnpm dev:web`
+- Build frontend: `pnpm build:web`
+- Check backend types: `pnpm typecheck`
+- Run browser tests: `pnpm test:e2e` (requires Docker and Playwright Chromium)
+- Start the full stack: `docker compose up -d --build`
+
+Docker Compose serves the frontend at `http://localhost:5173` and the API at `http://localhost:8080` by default.
+
+## AWS exam deployment
+
+[Infrastructure and deployment guide](infra/README.md), [AWS role setup](infra/AWS_SETUP.md), and [exam demonstration script](infra/EXAM_DEMO.md).

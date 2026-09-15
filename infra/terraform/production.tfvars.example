@@ -1,0 +1,11 @@
+# Set up a separate state key and bootstrap stack when using this profile.
+environment = "production"
+github_environment = "production"
+enable_https = true
+high_availability = true
+database_multi_az = true
+deletion_protection = true
+payment_mode = "razorpay"
+domain_name = "canteen.example.com"
+certificate_arn = "arn:aws:acm:ap-south-1:123456789012:certificate/REPLACE_ME"
+github_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"

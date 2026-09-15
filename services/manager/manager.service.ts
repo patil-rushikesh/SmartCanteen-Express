@@ -1,7 +1,6 @@
 import { AppError } from '../../utils/errors.js';
 import { assertValidTransition } from '../../utils/order-state-machine.js';
 import {
-  CanteenRepository,
   ManagerAssignmentRepository,
   MenuItemRepository,
   OrderRepository,
@@ -17,7 +16,6 @@ import { AuditEntityType, AuditEventType, OrderStatus } from '../../models/domai
 export class ManagerService {
   constructor(
     private readonly managerAssignmentRepository: ManagerAssignmentRepository,
-    private readonly canteenRepository: CanteenRepository,
     private readonly menuItemRepository: MenuItemRepository,
     private readonly orderRepository: OrderRepository,
     private readonly paymentRepository: PaymentRepository,

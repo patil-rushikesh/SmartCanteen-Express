@@ -1,0 +1,23 @@
+---
+- name: Verify public frontend and API readiness
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    deployment_url: "{{ lookup('env', 'APP_URL') }}"
+  tasks:
+    - name: Require the application HTTPS URL
+      ansible.builtin.assert:
+        that: deployment_url is match('^https://') or (lookup('env', 'ALLOW_HTTP_DEMO') == 'true' and deployment_url is match('^http://'))
+    - name: Check each service through the ALB
+      ansible.builtin.uri:
+        url: "{{ deployment_url }}{{ item }}"
+        status_code: 200
+        validate_certs: true
+      loop:
+        - /healthz
+        - /api/ready
+      register: health
+      retries: 6
+      delay: 10
+      until: health.status == 200

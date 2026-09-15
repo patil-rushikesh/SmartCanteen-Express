@@ -1,7 +1,7 @@
 import { AppError } from '../../utils/errors.js';
 import { cacheKeys, cacheProvider } from '../shared/cache.service.js';
 import { AuditService } from '../shared/audit.service.js';
-import { MenuItemRepository, OrderRepository, QRTokenRepository } from '../../repositories/index.js';
+import { MenuItemRepository, OrderRepository } from '../../repositories/index.js';
 import { AuditEntityType, AuditEventType, OrderStatus } from '../../models/domain.js';
 
 type CartItem = {
@@ -13,7 +13,6 @@ export class CustomerService {
   constructor(
     private readonly menuItemRepository: MenuItemRepository,
     private readonly orderRepository: OrderRepository,
-    private readonly qrTokenRepository: QRTokenRepository,
     private readonly auditService: AuditService
   ) {}
 

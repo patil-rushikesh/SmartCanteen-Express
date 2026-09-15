@@ -7,14 +7,14 @@
   "scripts": {
     "dev": "tsx watch index.ts",
     "dev:api": "tsx watch index.ts",
-    "dev:web": "pnpm --filter smart-canteen-frontend dev",
+    "dev:web": "pnpm --dir ../Frontend dev",
     "prebuild": "pnpm prisma:generate",
     "build": "tsc",
-    "build:web": "pnpm --filter smart-canteen-frontend build",
+    "build:web": "pnpm --dir ../Frontend build",
     "prestart": "pnpm prisma:generate",
     "start": "node dist/index.js",
     "prod": "pnpm run build && pnpm start",
-    "test:e2e": "pnpm --filter smart-canteen-frontend test:e2e",
+    "test:e2e": "pnpm --dir ../Frontend test:e2e",
     "postinstall": "pnpm prisma:generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -22,7 +22,8 @@
     "prisma:studio": "prisma studio",
     "prisma:db:push": "prisma db push",
     "prisma:format": "prisma format",
-    "seed": "node dist/scripts/seed.js"
+    "seed": "node dist/scripts/seed.js",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -42,7 +43,6 @@
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
     "bcryptjs": "^3.0.3",
-    "bullmq": "^5.71.1",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -50,6 +50,7 @@
     "express-rate-limit": "^8.3.1",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.20.0",
+    "pm2": "^7.0.4",
     "razorpay": "^2.9.6",
     "redis": "^5.11.0",
     "zod": "^4.3.6"

@@ -4,7 +4,6 @@ import {
   AuditEventType,
   OrderStatus,
   PaymentStatus,
-  QRStatus,
   RoleCode
 } from '../models/domain.js';
 

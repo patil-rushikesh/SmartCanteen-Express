@@ -1,0 +1,26 @@
+name: Infrastructure checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.11.4
+      - run: terraform -chdir=infra/terraform fmt -check -recursive
+      - run: terraform -chdir=infra/terraform init -backend=false -lockfile=readonly
+      - run: terraform -chdir=infra/terraform validate
+      - run: python3 -m pip install -r infra/ansible/requirements.txt cfn-lint==1.56.3
+      - run: cfn-lint infra/cloudformation/bootstrap.json
+      - run: ansible-playbook -i localhost, infra/ansible/deploy.yml --syntax-check
+      - run: ansible-playbook -i localhost, infra/ansible/verify.yml --syntax-check
+      - run: python3 -m unittest discover -s infra/tests -p 'test_*.py'

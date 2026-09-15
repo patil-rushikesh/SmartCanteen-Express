@@ -1,1 +1,0 @@
-export const ACTIVE_ORDER_STATUSES = ['CONFIRMED', 'PREPARING', 'READY', 'DELAYED'] as const;

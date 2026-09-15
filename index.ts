@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import { prisma } from './lib/prisma.js';
 import paymentWebhookRoutes from './modules/payment/routes.js';
 import { apiRouter } from './routes/index.js';
 import { apiRateLimit } from './middlewares/rate-limit.js';
@@ -7,6 +8,15 @@ import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
 import { corsOrigins, env } from './utils/env.js';
 
 const app = express();
+app.set('trust proxy', env.TRUST_PROXY_HOPS);
+app.use((req, res, next) => {
+  const started = Date.now();
+  res.on('finish', () => {
+    console.log(JSON.stringify({ type: 'http', method: req.method, path: req.path,
+      status: res.statusCode, durationMs: Date.now() - started }));
+  });
+  next();
+});
 
 app.use(cors({
   origin: corsOrigins,
@@ -27,6 +37,15 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
+app.get('/api/ready', async (_req: Request, res: Response) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({ status: 'ready' });
+  } catch {
+    res.status(503).json({ status: 'unavailable' });
+  }
+});
+
 app.use('/api/payments/webhooks', paymentWebhookRoutes);
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -36,6 +55,16 @@ app.use('/api', apiRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, () => {
   console.log(`[Server] Smart Canteen Backend running at http://localhost:${env.PORT}`);
 });
+
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(signal, () => {
+    const timeout = setTimeout(() => process.exit(1), 25_000);
+    timeout.unref();
+    server.close(() => {
+      void prisma.$disconnect().finally(() => process.exit(0));
+    });
+  });
+}

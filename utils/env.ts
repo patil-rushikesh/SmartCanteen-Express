@@ -4,6 +4,7 @@ import { z } from 'zod';
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(8080),
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(2).default(0),
   DATABASE_URL: z.string().min(1),
   JWT_ACCESS_SECRET: z.string().min(16).default('smart-canteen-access-secret'),
   JWT_REFRESH_SECRET: z.string().min(16).default('smart-canteen-refresh-secret'),

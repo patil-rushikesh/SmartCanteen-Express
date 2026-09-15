@@ -1,0 +1,109 @@
+name: CI and ECS release
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node --test tests/*.test.mjs
+      - run: python3 -m unittest discover -s infra/tests -p 'test_*.py'
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          load: true
+          tags: smartcanteen-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Start an isolated test database
+        run: |
+          docker network create canteen-ci
+          docker run -d --name ci-db --network canteen-ci \
+            -e POSTGRES_PASSWORD=ci-password -e POSTGRES_DB=canteen postgres:16-alpine
+          for _ in $(seq 1 30); do
+            if docker exec ci-db pg_isready -U postgres; then break; fi
+            sleep 2
+          done
+          docker exec ci-db pg_isready -U postgres
+      - name: Migrate and smoke test the production container
+        env:
+          DATABASE_URL: postgresql://postgres:ci-password@ci-db:5432/canteen
+        run: |
+          docker run --rm --network canteen-ci -e DATABASE_URL smartcanteen-backend:ci migrate
+          docker run -d --name ci-api --network canteen-ci -p 18080:8080 \
+            -e DATABASE_URL -e PAYMENT_PROVIDER_MODE=fake smartcanteen-backend:ci
+          curl --fail --retry 20 --retry-delay 2 --retry-all-errors http://localhost:18080/api/ready
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:18080/api/auth/me)" = 401
+      - name: Container diagnostics
+        if: failure()
+        run: docker logs ci-api 2>&1 || true
+  deploy:
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.ENABLE_AWS_DEPLOYMENT == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: exam
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      ECS_SERVICE: ${{ vars.ECS_SERVICE }}
+      ECS_TASK_TEMPLATE: ${{ vars.ECS_TASK_TEMPLATE }}
+      ECS_DESIRED_COUNT: ${{ vars.ECS_DESIRED_COUNT || '1' }}
+      APP_URL: ${{ vars.APP_URL }}
+      ALLOW_HTTP_DEMO: ${{ vars.ALLOW_HTTP_DEMO }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Validate release configuration
+        run: |
+          test -n "$AWS_REGION" && test -n "$ECS_CLUSTER" && test -n "$ECS_SERVICE"
+          test -n "$ECR_REPOSITORY" && test -n "$APP_URL"
+          case "$APP_URL" in https://*) ;; http://*) test "$ALLOW_HTTP_DEMO" = true ;; *) exit 1 ;; esac
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd
+        id: ecr
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        id: image
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          cache-from: type=gha
+          provenance: true
+          sbom: true
+      - name: Install Ansible
+        run: python3 -m pip install -r infra/ansible/requirements.txt
+      - name: Migrate, deploy, and verify
+        env:
+          IMAGE_URI: ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}@${{ steps.image.outputs.digest }}
+          ECS_CONTAINER: backend
+        run: ansible-playbook -i localhost, infra/ansible/deploy.yml

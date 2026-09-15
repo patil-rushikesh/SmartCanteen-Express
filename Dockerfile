@@ -15,8 +15,11 @@ ENV PATH="/app/node_modules/.bin:$PATH"
 WORKDIR /app
 RUN apk add --no-cache ca-certificates && mkdir -p /app/certs && \
     wget -q https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -O /app/certs/rds.pem && \
+    awk '/-----BEGIN CERTIFICATE-----/ {n++; file="/usr/local/share/ca-certificates/rds-" n ".crt"} file {print > file} /-----END CERTIFICATE-----/ {close(file); file=""}' /app/certs/rds.pem && \
+    update-ca-certificates && \
     addgroup -S nodejs && adduser -S smartcanteen -G nodejs
 ENV NODE_EXTRA_CA_CERTS=/app/certs/rds.pem
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 # Prisma CLI is retained for the separate migration task.
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules

@@ -33,7 +33,7 @@ locals {
     REDIS_URL             = "rediss://${aws_elasticache_replication_group.main.primary_endpoint_address}:6379"
   }
   frontend_environment = {
-    VITE_API_BASE_URL    = "/api", VITE_BACKEND_BASE_URL = local.application_url
+    VITE_API_BASE_URL    = "/api"
     VITE_PAYMENT_MODE    = var.payment_mode, VITE_RAZORPAY_KEY_ID = var.razorpay_public_key
     VITE_ENABLE_QA_TOOLS = "false"
   }

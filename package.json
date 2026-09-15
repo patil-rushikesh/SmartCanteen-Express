@@ -8,7 +8,7 @@
     "dev": "tsx watch index.ts",
     "dev:api": "tsx watch index.ts",
     "dev:web": "pnpm --dir ../Frontend dev",
-    "prebuild": "pnpm prisma:generate",
+    "prebuild": "pnpm clean && pnpm prisma:generate",
     "build": "tsc",
     "build:web": "pnpm --dir ../Frontend build",
     "prestart": "pnpm prisma:generate",
@@ -23,7 +23,8 @@
     "prisma:db:push": "prisma db push",
     "prisma:format": "prisma format",
     "seed": "node dist/scripts/seed.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
   },
   "keywords": [],
   "author": "",

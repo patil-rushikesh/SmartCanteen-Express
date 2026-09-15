@@ -14,7 +14,7 @@ This backend uses Express + TypeScript + Prisma with a Clean Architecture inspir
 - `utils/` contains cross-cutting helpers such as env parsing, JWT, hashing, crypto, and the strict order FSM.
 - `lib/container.ts` wires dependencies manually for simple dependency injection.
 
-The backend is stateless, tenant-aware, and horizontal-scaling ready. Redis is used through a cache abstraction for carts and QR/token cache hints, while the design keeps PostgreSQL as the source of truth.
+The backend is stateless, tenant-aware, and horizontal-scaling ready. Redis stores shared carts through a cache abstraction. PostgreSQL stores orders, payment records, QR tokens and refresh tokens.
 
 ## Folder Structure
 
@@ -141,7 +141,7 @@ Important lifecycle rules:
 - QR scan does not complete the order.
 - QR scan means customer present and order acknowledged.
 - Completion only happens when the manager explicitly moves `READY -> COMPLETED`.
-- Payment success is handled through Razorpay webhook processing.
+- Payment success is handled through customer verification or Razorpay webhooks. The exam configuration uses a fake provider and makes no real payment requests.
 - After payment success, the backend generates a signed QR token with `orderId`, `tenantId`, `exp`, and `nonce`.
 - QR tokens are one-time use, tenant-bound, and time-limited.
 - Delay detection marks stuck `CONFIRMED` or `PREPARING` orders as `DELAYED`.
@@ -230,3 +230,7 @@ Docker Compose serves the frontend at `http://localhost:5173` and the API at `ht
 ## AWS exam deployment
 
 [Infrastructure and deployment guide](infra/README.md), [AWS role setup](infra/AWS_SETUP.md), and [exam demonstration script](infra/EXAM_DEMO.md).
+
+## Repository maintenance
+
+`pnpm clean` removes generated `dist/` output. `pnpm build` cleans it before compiling so deleted source files do not survive as old JavaScript. Application architecture is documented here; AWS architecture and tool responsibilities are in [infra/README.md](infra/README.md).

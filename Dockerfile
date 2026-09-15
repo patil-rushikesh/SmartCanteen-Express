@@ -27,8 +27,8 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts
 COPY scripts/container.mjs ./scripts/container.mjs
-COPY entrypoint.sh ecosystem.config.cjs ./
+COPY ecosystem.config.cjs ./
 USER smartcanteen
 EXPOSE 8080
-ENTRYPOINT ["sh", "./entrypoint.sh"]
+ENTRYPOINT ["node", "scripts/container.mjs"]
 CMD ["serve"]

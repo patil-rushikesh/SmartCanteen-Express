@@ -1,6 +1,7 @@
 # Smart Canteen: exam deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the deployed URL, verified results, and GitHub run evidence.
+For the October assessment, use [SUBMISSION.md](SUBMISSION.md) to map the rubric to the evidence and run the short demonstration.
 
 ## Tool responsibilities
 

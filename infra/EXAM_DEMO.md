@@ -16,7 +16,7 @@ The exam uses Mumbai, fake payments and an HTTP ALB address with demo data. Kube
 | 2 | CloudFormation stack → Resources/Outputs | CloudFormation owns the bootstrap bucket and OIDC role |
 | 3 | Terraform files, `terraform plan`, S3 state object | Infrastructure as code, state and S3 locking |
 | 4 | SSM → Parameter Store → `/smartcanteen/exam/` | SecureString encryption; show names/types, not decrypted values |
-| 5 | GitHub PR checks | TypeScript, runtime tests, Docker smoke tests and infrastructure validation |
+| 5 | GitHub PR checks | TypeScript, runtime tests, three frontend Chromium flows, Docker smoke tests and infrastructure validation |
 | 6 | GitHub main-branch release | ECR push, immutable digest, Ansible migration task, ECS rollout |
 | 7 | ECR image and ECS task definition | The same image digest identifies the deployed release |
 | 8 | ALB listener rules and target groups | `/api/*` routes to Express; other paths route to Nginx |

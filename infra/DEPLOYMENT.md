@@ -48,6 +48,8 @@ The exam settings have one database, Redis node, NAT gateway and task per servic
 - [Terraform apply through GitHub OIDC — no changes](https://github.com/patil-rushikesh/SmartCanteen-Express/actions/runs/34993321154)
 - [Backend CI, image publishing, migration and deployment](https://github.com/patil-rushikesh/SmartCanteen-Express/actions/runs/34992238867)
 - [Frontend CI and final deployment](https://github.com/patil-rushikesh/SmartCanteenFrontend/actions/runs/34992913343)
+- [Frontend CI with three Chromium browser tests](https://github.com/patil-rushikesh/SmartCanteenFrontend/actions/runs/37496579680)
+- [October frontend CI, image publishing and deployment](https://github.com/patil-rushikesh/SmartCanteenFrontend/actions/runs/37497012991)
 
 Both repositories deploy main through their `exam` GitHub environment. Infrastructure uses the backend repository's `infrastructure` environment. These environments allow only `main`; GitHub authenticates with OIDC, with no AWS access keys stored in GitHub.
 

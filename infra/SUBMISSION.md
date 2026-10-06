@@ -17,10 +17,11 @@ Submission deadline: **10 October 2026**. Present this page with the [live deplo
 - [Backend CI and deployment run](https://github.com/patil-rushikesh/SmartCanteen-Express/actions/runs/34992238867)
 - [Frontend CI and deployment run](https://github.com/patil-rushikesh/SmartCanteenFrontend/actions/runs/34992913343)
 - [Frontend browser-test CI run](https://github.com/patil-rushikesh/SmartCanteenFrontend/actions/runs/37496579680)
+- [October frontend CI and deployment run](https://github.com/patil-rushikesh/SmartCanteenFrontend/actions/runs/37497012991)
 - [Infrastructure validation run](https://github.com/patil-rushikesh/SmartCanteen-Express/actions/runs/34991023507)
 - [Terraform plan and apply evidence](DEPLOYMENT.md#github-evidence)
 
-These deployment runs are from September 2026. Check the current status of the live services immediately before the presentation. The demo uses HTTP and simulated payments; do not describe it as a production payment deployment.
+The backend deployment run is from September 2026; the frontend was redeployed on 6 October 2026 after the browser tests passed. Check the current status of the live services immediately before the presentation. The demo uses HTTP and simulated payments; do not describe it as a production payment deployment.
 
 ## Demonstration in 5 minutes
 

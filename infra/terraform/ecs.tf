@@ -24,6 +24,7 @@ resource "aws_cloudwatch_log_group" "app" {
 }
 locals {
   backend_environment = {
+    APP_ENV               = var.environment
     NODE_ENV              = "production", PORT = "8080", TRUST_PROXY_HOPS = "1"
     CORS_ORIGIN           = local.application_url
     PAYMENT_PROVIDER_MODE = var.payment_mode

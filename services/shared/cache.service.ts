@@ -64,7 +64,7 @@ const createCacheProvider = (): CacheProvider => {
   redisClient = createClient({ url: env.REDIS_URL });
   redisClient.on('error', (error) => console.error('Redis error:', error));
   redisClient.connect().catch((error) => {
-    console.error('Redis connect failed, using in-memory cache fallback:', error);
+    console.error('Redis connect failed; readiness remains unavailable:', error);
   });
 
   return new RedisCacheProvider(redisClient);
@@ -75,4 +75,14 @@ export const cacheProvider = createCacheProvider();
 export const cacheKeys = {
   cart: (tenantId: string, userId: string) => `cart:${tenantId}:${userId}`,
   qr: (tenantId: string, orderId: string) => `qr:${tenantId}:${orderId}`
+};
+
+export const cacheReady = async (): Promise<void> => {
+  if (!redisClient) return;
+  if (!redisClient.isReady) throw new Error('Redis unavailable');
+  await redisClient.ping();
+};
+
+export const closeCache = async (): Promise<void> => {
+  if (redisClient?.isOpen) redisClient.destroy();
 };

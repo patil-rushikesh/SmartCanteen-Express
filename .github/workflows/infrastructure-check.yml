@@ -19,7 +19,11 @@ jobs:
       - run: terraform -chdir=infra/terraform fmt -check -recursive
       - run: terraform -chdir=infra/terraform init -backend=false -lockfile=readonly
       - run: terraform -chdir=infra/terraform validate
-      - run: python3 -m pip install -r infra/ansible/requirements.txt cfn-lint==1.56.3
+      - run: terraform -chdir=infra/grafana fmt -check -recursive
+      - run: terraform -chdir=infra/grafana init -backend=false -lockfile=readonly
+      - run: terraform -chdir=infra/grafana validate
+      - run: >-
+          python3 -m pip install --only-binary :all: --require-hashes -r infra/requirements-checks.txt
       - run: cfn-lint infra/cloudformation/bootstrap.json
       - run: ansible-playbook -i localhost, infra/ansible/deploy.yml --syntax-check
       - run: ansible-playbook -i localhost, infra/ansible/verify.yml --syntax-check

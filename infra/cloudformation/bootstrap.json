@@ -130,9 +130,14 @@
               "Condition": {
                 "StringEquals": {
                   "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                  "token.actions.githubusercontent.com:sub": {
-                    "Fn::Sub": "repo:${BackendRepository}:environment:infrastructure"
-                  }
+                  "token.actions.githubusercontent.com:sub": [
+                    {
+                      "Fn::Sub": "repo:${BackendRepository}:environment:infrastructure"
+                    },
+                    {
+                      "Fn::Sub": "repo:${BackendRepository}:environment:observability"
+                    }
+                  ]
                 }
               }
             }
@@ -265,6 +270,90 @@
                   ],
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${Project}/${Environment}/DB_PASSWORD"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:CreateFunction",
+                    "lambda:GetFunction",
+                    "lambda:GetFunctionConfiguration",
+                    "lambda:UpdateFunctionCode",
+                    "lambda:UpdateFunctionConfiguration",
+                    "lambda:DeleteFunction",
+                    "lambda:AddPermission",
+                    "lambda:RemovePermission",
+                    "lambda:GetPolicy",
+                    "lambda:ListVersionsByFunction",
+                    "lambda:GetFunctionCodeSigningConfig",
+                    "lambda:PutFunctionConcurrency",
+                    "lambda:DeleteFunctionConcurrency",
+                    "lambda:GetFunctionConcurrency",
+                    "lambda:TagResource",
+                    "lambda:UntagResource",
+                    "lambda:ListTags"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${Project}-${Environment}-operations"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "events:PutRule",
+                    "events:DescribeRule",
+                    "events:DeleteRule",
+                    "events:PutTargets",
+                    "events:RemoveTargets",
+                    "events:ListTargetsByRule",
+                    "events:ListTagsForResource",
+                    "events:TagResource",
+                    "events:UntagResource"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/${Project}-${Environment}-operations"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sns:CreateTopic",
+                    "sns:DeleteTopic",
+                    "sns:GetTopicAttributes",
+                    "sns:SetTopicAttributes",
+                    "sns:ListTagsForResource",
+                    "sns:TagResource",
+                    "sns:UntagResource",
+                    "sns:Subscribe",
+                    "sns:ListSubscriptionsByTopic"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${Project}-${Environment}-operations"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sns:GetSubscriptionAttributes",
+                    "sns:SetSubscriptionAttributes",
+                    "sns:Unsubscribe"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${Project}-${Environment}-operations:*"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "iam:PassRole"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Project}-${Environment}-operations"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "iam:PassedToService": "lambda.amazonaws.com"
+                    }
                   }
                 }
               ]

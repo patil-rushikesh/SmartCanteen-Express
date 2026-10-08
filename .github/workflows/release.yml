@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: '45 0 * * *' # 06:15 IST: release latest main after overnight shutdown
 permissions:
   contents: read
 concurrency:
@@ -17,6 +19,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -24,8 +27,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: node --test tests/*.test.mjs
-      - run: python3 -m unittest discover -s infra/tests -p 'test_*.py'
+      - run: pnpm test:coverage
+      - run: >-
+          python3 -m pip install --only-binary :all: --require-hashes -r infra/requirements-checks.txt
+      - run: python3 -m coverage run -m unittest discover -s infra/tests -p 'test_*.py'
+      - run: python3 -m coverage xml -o coverage/python.xml
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
@@ -56,21 +62,42 @@ jobs:
       - name: Container diagnostics
         if: failure()
         run: docker logs ci-api 2>&1 || true
+      - name: Validate SonarQube credentials
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: test -n "$SONAR_TOKEN" || { echo 'Configure SONAR_TOKEN before enabling releases'; exit 1; }
+      - name: SonarQube analysis and quality gate
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  release-window:
+    runs-on: ubuntu-latest
+    outputs:
+      allowed: ${{ steps.window.outputs.allowed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - id: window
+        run: python3 scripts/release-window.py
   deploy:
-    needs: check
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.ENABLE_AWS_DEPLOYMENT == 'true'
+    needs: [check, release-window]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.ENABLE_AWS_DEPLOYMENT == 'true' && needs.release-window.outputs.allowed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    environment: exam
+    environment: ${{ vars.DEPLOY_ENVIRONMENT || 'exam' }}
     permissions:
       contents: read
       id-token: write
     env:
+      DEPLOY_ENVIRONMENT: ${{ vars.DEPLOY_ENVIRONMENT || 'exam' }}
       AWS_REGION: ${{ vars.AWS_REGION }}
       ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
       ECS_SERVICE: ${{ vars.ECS_SERVICE }}
       ECS_TASK_TEMPLATE: ${{ vars.ECS_TASK_TEMPLATE }}
-      ECS_DESIRED_COUNT: ${{ vars.ECS_DESIRED_COUNT || '1' }}
+      ECS_DESIRED_COUNT: ${{ vars.ECS_DESIRED_COUNT || '2' }}
       APP_URL: ${{ vars.APP_URL }}
       ALLOW_HTTP_DEMO: ${{ vars.ALLOW_HTTP_DEMO }}
       ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
@@ -82,6 +109,11 @@ jobs:
         run: |
           test -n "$AWS_REGION" && test -n "$ECS_CLUSTER" && test -n "$ECS_SERVICE"
           test -n "$ECR_REPOSITORY" && test -n "$APP_URL"
+          if [ "$DEPLOY_ENVIRONMENT" = production ]; then
+            test "$ALLOW_HTTP_DEMO" != true
+            case "$APP_URL" in https://*) ;; *) exit 1 ;; esac
+            test "$ECS_DESIRED_COUNT" -ge 2
+          fi
           case "$APP_URL" in https://*) ;; http://*) test "$ALLOW_HTTP_DEMO" = true ;; *) exit 1 ;; esac
       - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
         with:
@@ -101,9 +133,12 @@ jobs:
           provenance: true
           sbom: true
       - name: Install Ansible
-        run: python3 -m pip install -r infra/ansible/requirements.txt
+        run: >-
+          python3 -m pip install --only-binary :all: --require-hashes -r infra/ansible/requirements.txt
       - name: Migrate, deploy, and verify
         env:
           IMAGE_URI: ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}@${{ steps.image.outputs.digest }}
           ECS_CONTAINER: backend
-        run: ansible-playbook -i localhost, infra/ansible/deploy.yml
+        run: |
+          python3 scripts/release-window.py --check
+          ansible-playbook -i localhost, infra/ansible/deploy.yml

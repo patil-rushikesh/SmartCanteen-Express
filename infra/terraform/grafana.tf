@@ -30,8 +30,8 @@ resource "aws_iam_role_policy" "grafana" {
   count = var.grafana_aws_account_id == "" ? 0 : 1
   role  = aws_iam_role.grafana[0].id
   policy = jsonencode({ Version = "2012-10-17", Statement = [
-    { Effect = "Allow", Action = ["cloudwatch:ListMetrics", "cloudwatch:GetMetricData", "cloudwatch:GetMetricStatistics", "cloudwatch:DescribeAlarms", "cloudwatch:DescribeAlarmsForMetric"], Resource = "*" },
-    { Effect = "Allow", Action = ["logs:DescribeLogGroups", "logs:GetQueryResults", "logs:StopQuery"], Resource = "*" },
+    { Effect = "Allow", Action = ["cloudwatch:ListMetrics", "cloudwatch:GetMetricData", "cloudwatch:GetMetricStatistics", "cloudwatch:DescribeAlarms", "cloudwatch:DescribeAlarmsForMetric"], Resource = "*", Condition = { StringEquals = { "aws:RequestedRegion" = var.aws_region } } },
+    { Effect = "Allow", Action = ["logs:DescribeLogGroups", "logs:GetQueryResults", "logs:StopQuery"], Resource = "*", Condition = { StringEquals = { "aws:RequestedRegion" = var.aws_region } } },
     { Effect = "Allow", Action = ["logs:DescribeLogStreams", "logs:GetLogGroupFields", "logs:StartQuery", "logs:GetLogEvents"], Resource = [for group in aws_cloudwatch_log_group.app : "${group.arn}:*"] }
   ] })
 }

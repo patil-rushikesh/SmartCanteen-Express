@@ -339,7 +339,7 @@
                     "sns:Unsubscribe"
                   ],
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${Project}-${Environment}-operations:*"
+                    "Fn::Sub": "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${Project}-${Environment}-operations"
                   }
                 },
                 {

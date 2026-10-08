@@ -39,6 +39,11 @@ In the backend repository, open **Actions → Application power → Run workflow
 - OFF endpoints return ALB errors and cannot process payment callbacks. Confirm
   provider retries/reconciliation before real payment launch. This is not 24/7 service.
 
+For an existing clock-based installation, first run **Application power** with
+`enabled=false`, then apply the new Terraform controller code. The legacy controller
+ignores the flag until that apply completes; verify the new code and OFF state via
+**Operations status**. New installations initialize the flag to false.
+
 ## Service objectives and alert response
 
 Owner: repository maintainer until an operational rota is assigned. Confirm an SNS

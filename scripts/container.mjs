@@ -20,6 +20,10 @@ export function databaseUrl(env, migration = false) {
 }
 
 export async function main(mode = 'serve') {
+  if (process.env.APP_ENV === 'production' &&
+      (mode === 'seed' || process.env.SEED_DEMO_DATA === 'true' || process.env.RUN_MIGRATIONS === 'true')) {
+    throw new Error('Production forbids demo seeding and startup migrations; use a separate migration task');
+  }
   const migrate = () => {
     const result = spawnSync(process.execPath,
       ['node_modules/prisma/build/index.js', 'migrate', 'deploy', '--config=prisma.config.ts'],

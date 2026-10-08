@@ -17,7 +17,8 @@ variable "alert_email" {
   description = "Confirm the SNS subscription email after apply."
 }
 resource "aws_sns_topic" "operations" {
-  name = "${local.name}-operations"
+  name              = "${local.name}-operations"
+  kms_master_key_id = aws_kms_key.alerts.arn
 }
 resource "aws_sns_topic_subscription" "operations" {
   count     = var.alert_email == "" ? 0 : 1

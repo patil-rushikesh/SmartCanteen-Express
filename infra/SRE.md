@@ -113,7 +113,7 @@ Use AWS SSO/a local `smartcanteen` profile; GitHub uses short-lived OIDC credent
 4. **Bootstrap:** update the existing CloudFormation bootstrap stack using the
    reviewed `infra/cloudformation/bootstrap.json` and its existing parameter values.
    New permissions cover the scoped operations Lambda, EventBridge rule, SNS topic
-   and Lambda pass-role. The trust policy includes the `observability` environment.
+   Lambda pass-role and a tagged customer-managed KMS key for encrypted alerts. The trust policy includes the `observability` environment.
    This is a prerequisite to Terraform apply; an old bootstrap role cannot create
    these resources. Keep GitHub environments restricted to `main`.
 5. **AWS infrastructure workflow:** `DEPLOY_ENVIRONMENT` defaults to `exam` and
@@ -154,3 +154,21 @@ payment webhook and refund flow; confirmed alert delivery; Grafana populated dat
 nightly stop/morning start; rollback rehearsal; and a backup restore. Until these
 checks pass and outstanding security findings are resolved/reviewed, this work is
 production-readiness preparation, not a production-readiness certification.
+
+## IAM review notes
+
+The metrics read APIs used by Grafana, CloudWatch Logs query-result APIs and
+namespace-scoped `PutMetricData` include wildcard resources where required by AWS's
+classic metrics/query authorization model. Grafana cannot mutate metrics or services;
+log-start permissions are restricted to the application's log groups, and its trust
+requires the stack's external ID. The operations role can update only this cluster's
+services/database and publish only its metric namespace. KMS `Resource: "*"` in a
+key policy denotes the key to which the policy is attached; alarm use is limited by
+source account and application alarm ARN. Bootstrap CreateKey is limited by request
+tags, with later management limited by resource tags. Review these distinctions in
+Sonar findings; do not remove required runtime permissions or conceal the findings
+solely to obtain a green gate.
+
+References: [CloudWatch IAM actions](https://docs.aws.amazon.com/service-authorization/latest/reference/list_cloudwatch.html),
+[namespace restrictions](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/iam-cw-condition-keys-namespace.html),
+[encrypted CloudWatch notifications](https://repost.aws/knowledge-center/cloudwatch-configure-alarm-sns).

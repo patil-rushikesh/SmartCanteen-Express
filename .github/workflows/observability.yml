@@ -33,7 +33,7 @@ jobs:
       TF_VAR_database_identifier: ${{ vars.DATABASE_IDENTIFIER }}
       TF_VAR_load_balancer_arn_suffix: ${{ vars.ALB_ARN_SUFFIX }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd

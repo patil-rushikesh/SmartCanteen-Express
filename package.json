@@ -25,7 +25,7 @@
     "seed": "node dist/scripts/seed.js",
     "typecheck": "tsc --noEmit",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "test:coverage": "c8 --all --include=\"dist/**/*.js\" --exclude=\"dist/scripts/**\" --reporter=lcov --reporter=text node --test tests/*.test.mjs"
+    "test:coverage": "c8 --all --include=\"dist/**/*.js\" --include=\"scripts/**/*.mjs\" --exclude=\"dist/scripts/**\" --reporter=lcov --reporter=text node --test tests/*.test.mjs"
   },
   "keywords": [],
   "author": "",

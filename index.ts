@@ -61,6 +61,8 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 const server = app.listen(env.PORT, () => {
+  const address = server.address();
+  if (process.send && address && typeof address !== 'string') process.send({ port: address.port });
   console.log(`[Server] Smart Canteen Backend running at http://localhost:${env.PORT}`);
 });
 

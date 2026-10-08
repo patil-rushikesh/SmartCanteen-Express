@@ -15,3 +15,28 @@ class WindowTests(unittest.TestCase):
             with self.subTest(time=now):
                 self.assertEqual(window.allowed(now), expected)
                 self.assertEqual(window.allowed(now.astimezone(ZoneInfo('UTC'))), expected)
+
+class WindowCommandTests(unittest.TestCase):
+    def test_ci_output_and_pre_rollout_check(self):
+        import os
+        import runpy
+        import tempfile
+        from unittest.mock import patch
+        script = Path(__file__).parents[2] / 'scripts/release-window.py'
+        for hour, expected in [(12, True), (23, False)]:
+            instant = datetime(2026, 10, 8, hour, 0, tzinfo=ZoneInfo('Asia/Kolkata'))
+            class Clock(datetime):
+                @classmethod
+                def now(cls, tz=None):
+                    return instant.astimezone(tz)
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / 'output'
+                with patch('datetime.datetime', Clock), patch('sys.argv', [str(script)]), patch.dict(os.environ, {'GITHUB_OUTPUT':str(output)}):
+                    runpy.run_path(str(script), run_name='__main__')
+                self.assertEqual(output.read_text(), f'allowed={str(expected).lower()}\n')
+                with patch('datetime.datetime', Clock), patch('sys.argv', [str(script), '--check']):
+                    if expected:
+                        runpy.run_path(str(script), run_name='__main__')
+                    else:
+                        with self.assertRaisesRegex(SystemExit, 'Release window closed'):
+                            runpy.run_path(str(script), run_name='__main__')

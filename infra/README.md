@@ -182,5 +182,5 @@ Local validation covers TypeScript builds, runtime URL construction, fake-paymen
 
 ## Reliability and managed observability
 
-See [SRE and production activation](SRE.md) for operating hours, alert response,
+See [SRE and production activation](SRE.md) for the application power flag, alert response,
 Grafana Cloud setup, SonarQube CI gates, credential locations, and go-live evidence.

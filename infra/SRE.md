@@ -4,36 +4,45 @@ These controls are code until Terraform is applied, the GitHub workflow is merge
 and the corresponding services are verified. The existing `exam` environment is
 HTTP with simulated payments; it must not be represented as production.
 
-## Operating hours
+## Application power
 
-- Time zone: **Asia/Kolkata**, every day including weekends.
-- RDS starts warming up at **05:30**. ECS starts at **06:00**, only once RDS is available.
-- At **17:00**, the controller sets both ECS services to zero. It stops RDS only
-  after running/pending service tasks and standalone migration tasks have drained.
-- EventBridge invokes an idempotent Lambda every minute. This also corrects drift
-  and retries a failed start/stop on the next invocation. Transitions are not
-  instantaneous: AWS startup, health checks and draining add delay. Confirm actual
-  startup duration in a live rehearsal before promising readiness precisely at 06:00.
-- The controller uses shared Lambda capacity by default because small AWS account
-  quotas cannot reserve concurrency. Its 45-second timeout is shorter than the
-  one-minute cadence. Duplicate deliveries reconcile current time and AWS state;
-  transient AWS state-transition conflicts retry on later invocations. Set
-  `OPERATIONS_RESERVED_CONCURRENCY=1` only after confirming the account has spare
-  capacity above AWS's required unreserved minimum. Never use zero: it disables
-  the controller. The heartbeat alarm detects missed reconciliation.
-- Application releases are admitted between **06:00 and 16:15**. The 45-minute buffer
-  protects the 17:00 shutdown. CI still runs on all pull requests/main commits.
-  The daily 06:15 GitHub run builds/tests/scans/deploys the latest `main`; intermediate
-  overnight commits can be superseded. GitHub scheduled runs may be delayed.
-- Redis, ALB, NAT gateways, storage, snapshots and monitoring continue incurring
-  charges overnight. Stopping RDS preserves data; it does not remove storage charges.
-- RDS can restart automatically after seven stopped days; the controller reconciles
-  state each minute. This database is PostgreSQL; do not apply this controller to
-  an unsupported RDS topology or a shared cluster without adapting its task checks.
-- Overnight endpoints return ALB errors because all targets are stopped. Payment
-  callbacks cannot be processed then. Before real payment launch, validate provider
-  retry/reconciliation behavior and decide whether an always-on webhook receiver is
-  needed. The schedule is not a 24/7 availability promise.
+The shared `APPLICATION_ENABLED` flag on the operations Lambda controls both ECS
+services and RDS. No time zone, daily cron or business-hour override controls power.
+In the backend repository, open **Actions → Application power → Run workflow** on
+`main`. Check `enabled` to turn ON; leave it unchecked to turn OFF.
+
+- **ON (`true`):** start RDS, wait for `available`, then restore application replicas.
+- **OFF (`false`):** scale both ECS services to zero, then stop RDS only after all
+  service and standalone migration tasks have drained. Data is preserved.
+- The initial flag is OFF. Terraform preserves the live flag on later applies;
+  the power workflow serializes with infrastructure applies and uses a Lambda
+  revision check to avoid overwriting concurrent configuration changes.
+- EventBridge still invokes the controller every minute to reconcile the flag and
+  retry transitions. This is polling, not a timed startup/shutdown schedule.
+  Missing or invalid flags fail without changing resources and stop the heartbeat.
+- **Operations status** shows the flag, ECS counts, database state and heartbeat.
+  A successful power workflow confirms the requested flag, not completed startup
+  or shutdown. Allow several minutes for RDS and service transitions.
+- CI and Sonar run on every commit. Releases read the same flag and skip deployment
+  when OFF or when the flag is changing. They recheck before rollout; capacity is
+  owned only by the controller, so a release cannot scale services back up after OFF.
+  A power change during a release may cause that release to fail; inspect it before
+  rerunning. After ON and healthy services, manually run **CI and ECS release** in
+  both repositories to deploy the latest main commits accumulated while OFF.
+- The separate `ENABLE_AWS_DEPLOYMENT` repository variable remains the release
+  kill switch; it does not control application power.
+- Redis, ALB, NAT gateways, storage, snapshots and monitoring still incur charges
+  while OFF. RDS may automatically restart after seven stopped days; the controller
+  returns it to OFF once AWS permits stopping it again.
+- The controller uses shared Lambda capacity by default. Its 45-second timeout is
+  shorter than its one-minute polling interval; the heartbeat detects failures.
+- OFF endpoints return ALB errors and cannot process payment callbacks. Confirm
+  provider retries/reconciliation before real payment launch. This is not 24/7 service.
+
+For an existing clock-based installation, first run **Application power** with
+`enabled=false`, then apply the new Terraform controller code. The legacy controller
+ignores the flag until that apply completes; verify the new code and OFF state via
+**Operations status**. New installations initialize the flag to false.
 
 ## Service objectives and alert response
 
@@ -42,22 +51,22 @@ subscription and send a test message before treating notifications as operationa
 
 | Indicator | Initial objective over rolling 30 days | Implementation |
 |---|---|---|
-| Availability | 99.9% of expected one-minute probes during 06:00–17:00 IST | `/api/ready` (PostgreSQL + Redis) and `/healthz`; `Availability` metric per component |
-| Latency | p95 ALB target response time below 1 second in at least 99% of business-hour five-minute windows with traffic | ALB metric, dashboard and alarm |
+| Availability | 99.9% of expected one-minute probes while the power flag is ON | `/api/ready` (PostgreSQL + Redis) and `/healthz`; `Availability` metric per component |
+| Latency | p95 ALB target response time below 1 second in at least 99% of enabled five-minute windows with traffic | ALB metric, dashboard and alarm |
 | Server errors | Fewer than 1% target 5xx responses | ALB error-rate alarm with a 20-request minimum to reduce noise |
 | Monitoring coverage | No missing controller heartbeat for 10 minutes | Always-on `OperationsHeartbeat` alarm, missing data is breaching |
 
-The 99.9% availability objective gives **19.8 minutes** of error budget in a 30-day
-period with 660 expected service minutes/day. For each component, count successful
-probe minutes divided by expected business-hour minutes; treat missing business-hour
-samples as unknown/unavailable, never as success. Planned overnight hours are excluded.
+The availability error budget is 0.1% of expected enabled minutes in each rolling
+30-day period. Record power changes from workflow history and count successful
+probe minutes against all expected ON minutes, including startup. Missing ON
+samples are unknown/unavailable, never success. Explicit OFF periods are excluded.
 A simple average of only reported samples can hide monitoring gaps: cross-check
 heartbeat and expected samples. Probe checks do not establish business transaction
 correctness; browser tests cover representative order flows in CI.
 
 On an availability alarm, acknowledge and start investigation within 10 minutes.
-Check the clock, heartbeat, Lambda logs, RDS state, ECS service events and ALB target
-health. Failed probes in 3 of 5 minutes alert; missing probes overnight do not.
+Check the power flag, heartbeat, Lambda logs, RDS state, ECS service events and ALB target
+health. Failed probes in 3 of 5 minutes alert; missing probes while OFF do not.
 CPU >80%, low database storage (<5 GiB), unhealthy targets, p95 latency and error
 rate send SNS ALARM/recovery notifications. CloudWatch is the alert authority;
 Grafana visualizes the same metrics rather than duplicating paging rules.
@@ -79,7 +88,7 @@ infrastructure and code; low coverage and existing findings remain visible.
 Use backwards-compatible expand/contract database migrations. ECS automatically
 rolls back unhealthy revisions, and release checks reject a rollback as failure.
 To roll back code, select the previous successful immutable ECS task definition,
-update the service during operating hours and verify both endpoints and an order
+update the service while the power flag is ON and verify both endpoints and an order
 flow. Database changes are NOT automatically rolled back. Stop releases if a
 migration fails; diagnose its CloudWatch log before rerunning. The operations
 controller waits for migration tasks before stopping the database.
@@ -126,7 +135,7 @@ Use AWS SSO/a local `smartcanteen` profile; GitHub uses short-lived OIDC credent
 5. **AWS infrastructure workflow:** `DEPLOY_ENVIRONMENT` defaults to `exam` and
    `TF_STATE_KEY` to `smartcanteen/exam/terraform.tfstate`. Set `ECS_DESIRED_COUNT`
    consistently in both release environments and infrastructure (default 2).
-   Run plan, review resource changes, then apply. Scheduling is enabled by this
+   Run plan, review resource changes, then apply. The flag controller is enabled by this
    workflow. Do not apply stale state or delete existing infrastructure.
 6. **Grafana provisioning:** create backend GitHub environment `observability`,
    restrict it to `main`, store `GRAFANA_AUTH` as an environment secret. Set variables:
@@ -158,7 +167,7 @@ schema check does not verify IAM permissions or deployment behavior in AWS.
 
 Record passing CI/Sonar scans; HTTPS and certificate checks; successful live order,
 payment webhook and refund flow; confirmed alert delivery; Grafana populated data;
-nightly stop/morning start; rollback rehearsal; and a backup restore. Until these
+flag-driven stop/start; rollback rehearsal; and a backup restore. Until these
 checks pass and outstanding security findings are resolved/reviewed, this work is
 production-readiness preparation, not a production-readiness certification.
 

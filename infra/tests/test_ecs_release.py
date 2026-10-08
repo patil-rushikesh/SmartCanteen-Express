@@ -25,13 +25,17 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             release.render_task(TASK, 'frontend', IMAGE)
 
-    def run_deployment(self, migration_exit=0, rolled_back=False):
+    def run_deployment(self, migration_exit=0, rolled_back=False, power_off_after_migration=False):
         calls = []
         service_reads = 0
+        power_reads = 0
 
         def aws(*args):
-            nonlocal service_reads
+            nonlocal service_reads, power_reads
             calls.append(args)
+            if args[1] == 'get-function-configuration':
+                power_reads += 1
+                return {'Environment': {'Variables': {'APPLICATION_ENABLED': 'false' if power_off_after_migration and power_reads > 1 else 'true'}}, 'LastUpdateStatus': 'Successful'}
             if args[1] == 'describe-services':
                 service_reads += 1
                 return {'services': [{'taskDefinition': 'old' if service_reads == 1 or rolled_back else 'new', 'runningCount': 2, 'networkConfiguration': {'awsvpcConfiguration': {'subnets': ['private'], 'securityGroups': ['api'], 'assignPublicIp': 'DISABLED'}}}]}
@@ -43,7 +47,7 @@ class ReleaseTests(unittest.TestCase):
 
         args = SimpleNamespace(cluster='cluster', service='backend', template='', container='backend', image=IMAGE, desired_count=2)
         with patch.object(release, 'aws', side_effect=aws):
-            if migration_exit or rolled_back:
+            if migration_exit or rolled_back or power_off_after_migration:
                 with self.assertRaises(RuntimeError): release.deploy(args)
             else:
                 release.deploy(args)
@@ -57,6 +61,16 @@ class ReleaseTests(unittest.TestCase):
         calls = self.run_deployment()
         actions = [c[1] for c in calls]
         self.assertLess(actions.index('describe-tasks'), actions.index('update-service'))
+        self.assertNotIn('--desired-count', next(c for c in calls if c[1] == 'update-service'))
+
+    def test_off_during_migration_prevents_rollout(self):
+        calls = self.run_deployment(power_off_after_migration=True)
+        self.assertFalse(any(c[1] == 'update-service' for c in calls))
+
+    def test_missing_flag_denies_release(self):
+        with patch.object(release, 'aws', return_value={}):
+            with self.assertRaises(RuntimeError):
+                release.require_power('cluster')
 
     def test_automatic_rollback_is_a_failed_release(self):
         self.run_deployment(rolled_back=True)

@@ -4,8 +4,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  schedule:
-    - cron: '45 0 * * *' # 06:15 IST: release latest main after overnight shutdown
 permissions:
   contents: read
 concurrency:
@@ -72,19 +70,9 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  release-window:
-    runs-on: ubuntu-latest
-    outputs:
-      allowed: ${{ steps.window.outputs.allowed }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          persist-credentials: false
-      - id: window
-        run: python3 scripts/release-window.py
   deploy:
-    needs: [check, release-window]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.ENABLE_AWS_DEPLOYMENT == 'true' && needs.release-window.outputs.allowed == 'true'
+    needs: [check]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.ENABLE_AWS_DEPLOYMENT == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     environment: ${{ vars.DEPLOY_ENVIRONMENT || 'exam' }}
@@ -119,10 +107,16 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
+      - name: Read application power flag
+        id: power
+        run: python3 scripts/release-power.py
       - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd
+        if: steps.power.outputs.allowed == 'true'
         id: ecr
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+        if: steps.power.outputs.allowed == 'true'
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        if: steps.power.outputs.allowed == 'true'
         id: image
         with:
           context: .
@@ -133,12 +127,14 @@ jobs:
           provenance: true
           sbom: true
       - name: Install Ansible
+        if: steps.power.outputs.allowed == 'true'
         run: >-
           python3 -m pip install --only-binary :all: --require-hashes -r infra/ansible/requirements.txt
       - name: Migrate, deploy, and verify
+        if: steps.power.outputs.allowed == 'true'
         env:
           IMAGE_URI: ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}@${{ steps.image.outputs.digest }}
           ECS_CONTAINER: backend
         run: |
-          python3 scripts/release-window.py --check
+          python3 scripts/release-power.py --check
           ansible-playbook -i localhost, infra/ansible/deploy.yml

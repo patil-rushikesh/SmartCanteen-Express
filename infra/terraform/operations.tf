@@ -1,7 +1,7 @@
 variable "enable_operating_schedule" {
   type        = bool
   default     = true
-  description = "Daily 06:00-17:00 Asia/Kolkata application hours; RDS warm-up starts 05:30."
+  description = "Enable the flag-driven power controller (legacy variable name retained for compatibility)."
 }
 variable "daytime_replicas" {
   type    = number
@@ -22,7 +22,7 @@ variable "operations_reserved_concurrency" {
   description = "Use shared Lambda capacity (-1) for small account quotas; reserve a positive count only when the account has sufficient unreserved capacity."
   validation {
     condition     = var.operations_reserved_concurrency == -1 || (var.operations_reserved_concurrency >= 1 && floor(var.operations_reserved_concurrency) == var.operations_reserved_concurrency)
-    error_message = "Use -1 for shared capacity or a positive integer reservation. Zero would disable the scheduler."
+    error_message = "Use -1 for shared capacity or a positive integer reservation. Zero would disable the controller."
   }
 }
 resource "aws_sns_topic" "operations" {
@@ -75,13 +75,18 @@ resource "aws_lambda_function" "operations" {
   reserved_concurrent_executions = var.operations_reserved_concurrency
   environment {
     variables = {
-      CLUSTER          = aws_ecs_cluster.main.name
-      SERVICES         = jsonencode([for s in aws_ecs_service.app : s.name])
-      DATABASE         = aws_db_instance.main.identifier
-      REPLICAS         = tostring(var.daytime_replicas)
-      APP_URL          = local.application_url
-      METRIC_NAMESPACE = "SmartCanteen/${local.name}"
+      APPLICATION_ENABLED = "false"
+      CLUSTER             = aws_ecs_cluster.main.name
+      SERVICES            = jsonencode([for s in aws_ecs_service.app : s.name])
+      DATABASE            = aws_db_instance.main.identifier
+      REPLICAS            = tostring(var.daytime_replicas)
+      APP_URL             = local.application_url
+      METRIC_NAMESPACE    = "SmartCanteen/${local.name}"
     }
+  }
+  lifecycle {
+    # The Application power workflow owns only this runtime switch.
+    ignore_changes = [environment[0].variables["APPLICATION_ENABLED"]]
   }
   depends_on = [aws_iam_role_policy.operations]
 }
@@ -134,7 +139,7 @@ resource "aws_cloudwatch_metric_alarm" "availability" {
   threshold           = 1
   comparison_operator = "LessThanThreshold"
   treat_missing_data  = "notBreaching"
-  alarm_description   = "Failed public probes during 06:00-17:00 IST. Check RDS readiness, ECS events, and rollback runbook."
+  alarm_description   = "Failed public probes while APPLICATION_ENABLED=true. Check RDS readiness, ECS events, and rollback runbook."
   alarm_actions       = [aws_sns_topic.operations.arn]
   ok_actions          = [aws_sns_topic.operations.arn]
 }

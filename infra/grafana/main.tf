@@ -27,8 +27,8 @@ resource "grafana_folder" "operations" {
 }
 locals {
   metrics = [
-    { title = "Backend availability (business hours)", namespace = "SmartCanteen/${var.cluster_name}", metric = "Availability", statistic = "Average", dimensions = { Component = "backend" }, unit = "percentunit" },
-    { title = "Frontend availability (business hours)", namespace = "SmartCanteen/${var.cluster_name}", metric = "Availability", statistic = "Average", dimensions = { Component = "frontend" }, unit = "percentunit" },
+    { title = "Backend availability (power ON)", namespace = "SmartCanteen/${var.cluster_name}", metric = "Availability", statistic = "Average", dimensions = { Component = "backend" }, unit = "percentunit" },
+    { title = "Frontend availability (power ON)", namespace = "SmartCanteen/${var.cluster_name}", metric = "Availability", statistic = "Average", dimensions = { Component = "frontend" }, unit = "percentunit" },
     { title = "Backend CPU", namespace = "AWS/ECS", metric = "CPUUtilization", statistic = "Average", dimensions = { ClusterName = var.cluster_name, ServiceName = "${var.cluster_name}-backend" }, unit = "percent" },
     { title = "Backend memory", namespace = "AWS/ECS", metric = "MemoryUtilization", statistic = "Average", dimensions = { ClusterName = var.cluster_name, ServiceName = "${var.cluster_name}-backend" }, unit = "percent" },
     { title = "ALB target 5xx", namespace = "AWS/ApplicationELB", metric = "HTTPCode_Target_5XX_Count", statistic = "Sum", dimensions = { LoadBalancer = var.load_balancer_arn_suffix }, unit = "short" },
@@ -43,7 +43,7 @@ resource "grafana_dashboard" "operations" {
     uid         = "smartcanteen-sre", title = "SmartCanteen Reliability", schemaVersion = 39,
     tags        = ["smartcanteen", "sre"], timezone = "Asia/Kolkata", refresh = "1m",
     time        = { from = "now-12h", to = "now" },
-    description = "Service hours 06:00-17:00 IST. Missing availability samples outside these hours are expected. Read the SRE runbook before assessing SLOs.",
+    description = "Availability is measured while APPLICATION_ENABLED=true. Missing samples while OFF are expected. Read the SRE runbook before assessing SLOs.",
     panels = [for i, m in local.metrics : {
       id          = i + 1, title = m.title, type = "timeseries",
       gridPos     = { x = (i % 2) * 12, y = floor(i / 2) * 8, w = 12, h = 8 },

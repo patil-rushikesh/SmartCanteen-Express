@@ -31,7 +31,15 @@ def service_state(cluster, service):
     return result['services'][0]
 
 
+def require_power(cluster):
+    config = aws('lambda', 'get-function-configuration', '--function-name', cluster + '-operations')
+    flag = config.get('Environment', {}).get('Variables', {}).get('APPLICATION_ENABLED')
+    if flag != 'true' or config.get('LastUpdateStatus') != 'Successful':
+        raise RuntimeError('Application power is off, invalid or changing; release denied')
+
+
 def deploy(args):
+    require_power(args.cluster)
     service = service_state(args.cluster, args.service)
     source = args.template or service['taskDefinition']
     task = aws('ecs', 'describe-task-definition', '--task-definition', source)['taskDefinition']
@@ -56,8 +64,9 @@ def deploy(args):
         if len(containers) != 1 or containers[0].get('exitCode') != 0:
             raise RuntimeError(f'Migration failed ({migration}); inspect CloudWatch logs. Service was not updated.')
         print('Migration completed successfully', flush=True)
+    require_power(args.cluster)
     aws('ecs', 'update-service', '--cluster', args.cluster, '--service', args.service,
-        '--task-definition', revision, '--desired-count', str(args.desired_count))
+        '--task-definition', revision)
     aws('ecs', 'wait', 'services-stable', '--cluster', args.cluster, '--services', args.service)
     updated = service_state(args.cluster, args.service)
     if updated['taskDefinition'] != revision or updated['runningCount'] < args.desired_count:

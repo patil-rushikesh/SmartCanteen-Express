@@ -1,0 +1,61 @@
+name: Application power
+on:
+  workflow_dispatch:
+    inputs:
+      enabled:
+        description: 'ON starts database then application; OFF drains application then stops database'
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: terraform-infrastructure
+  cancel-in-progress: false
+jobs:
+  power:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: infrastructure
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      FUNCTION_NAME: smartcanteen-${{ vars.DEPLOY_ENVIRONMENT || 'exam' }}-operations
+      APPLICATION_ENABLED: ${{ inputs.enabled }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Set the shared power flag
+        shell: python
+        run: |
+          import json
+          import os
+          import subprocess
+
+          def aws(*args):
+              result = subprocess.run(['aws', 'lambda', *args, '--output', 'json'],
+                                      check=True, capture_output=True, text=True)
+              return json.loads(result.stdout) if result.stdout.strip() else {}
+
+          function = os.environ['FUNCTION_NAME']
+          flag = os.environ['APPLICATION_ENABLED']
+          if flag not in ('true', 'false'):
+              raise ValueError('Power flag must be true or false')
+          config = aws('get-function-configuration', '--function-name', function)
+          variables = config['Environment']['Variables']
+          variables['APPLICATION_ENABLED'] = flag
+          # Preserve all other settings; refuse a concurrent configuration overwrite.
+          aws('update-function-configuration', '--function-name', function,
+              '--revision-id', config['RevisionId'], '--environment', json.dumps({'Variables': variables}))
+          aws('wait', 'function-updated-v2', '--function-name', function)
+          current = aws('get-function-configuration', '--function-name', function)
+          if current['Environment']['Variables']['APPLICATION_ENABLED'] != flag:
+              raise RuntimeError('Power flag verification failed')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
+              output.write(f'## Application power requested: {flag}\n\n')
+              output.write('The controller reconciles this flag every minute. Database startup and task draining take additional time. Run **Operations status** to verify actual resource state.\n')
+              output.write('After turning on, wait for database availability and healthy services before running **CI and ECS release** in both repositories to deploy commits made while off.\n')

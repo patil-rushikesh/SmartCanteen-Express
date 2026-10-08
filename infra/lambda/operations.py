@@ -1,4 +1,4 @@
-"""Reconcile operating hours; never stop RDS while ECS tasks are still running."""
+"""Reconcile the explicit power flag; never stop RDS while ECS tasks are still running."""
 import json
 import os
 from datetime import datetime
@@ -6,13 +6,14 @@ from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
 
-def operating_state(now):
-    minute = now.astimezone(ZoneInfo('Asia/Kolkata')).hour * 60 + now.astimezone(ZoneInfo('Asia/Kolkata')).minute
-    return {'database': 330 <= minute < 1020, 'application': 360 <= minute < 1020}
+def operating_state(flag):
+    if flag not in ('true', 'false'):
+        raise ValueError('APPLICATION_ENABLED must be true or false')
+    return {'database': flag == 'true', 'application': flag == 'true'}
 
 
-def reconcile(ecs, rds, cluster, services, database, replicas, now):
-    state = operating_state(now)
+def reconcile(ecs, rds, cluster, services, database, replicas, flag):
+    state = operating_state(flag)
     db = rds.describe_db_instances(DBInstanceIdentifier=database)['DBInstances'][0]
     status = db['DBInstanceStatus']
     result = ecs.describe_services(cluster=cluster, services=services)
@@ -40,7 +41,7 @@ def handler(event, context):
     now = datetime.now(ZoneInfo('Asia/Kolkata'))
     state = reconcile(boto3.client('ecs'), boto3.client('rds'), os.environ['CLUSTER'],
                       json.loads(os.environ['SERVICES']), os.environ['DATABASE'],
-                      int(os.environ['REPLICAS']), now)
+                      int(os.environ['REPLICAS']), os.environ['APPLICATION_ENABLED'])
     metrics = [{'MetricName': 'OperationsHeartbeat', 'Value': 1, 'Unit': 'Count'}]
     if state['application']:
         for component, path in [('backend', '/api/ready'), ('frontend', '/healthz')]:

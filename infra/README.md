@@ -179,3 +179,8 @@ Local validation covers TypeScript builds, runtime URL construction, fake-paymen
 - [Terraform write-only arguments](https://developer.hashicorp.com/terraform/language/manage-sensitive-data/write-only)
 - [PM2 in Docker](https://pm2.keymetrics.io/docs/usage/docker-pm2-nodejs/)
 - [CloudWatch Container Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/ContainerInsights.html)
+
+## Reliability and managed observability
+
+See [SRE and production activation](SRE.md) for operating hours, alert response,
+Grafana Cloud setup, SonarQube CI gates, credential locations, and go-live evidence.

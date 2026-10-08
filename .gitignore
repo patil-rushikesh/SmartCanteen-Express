@@ -23,3 +23,8 @@ playwright-report/
 backend.hcl
 __pycache__/
 *.pyc
+
+# Generated Lambda archive
+infra/terraform/operations.zip
+
+.coverage

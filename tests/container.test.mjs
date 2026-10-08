@@ -22,3 +22,21 @@ test('fails before launch with incomplete credentials or unknown commands', asyn
   assert.throws(() => databaseUrl({}), /Missing DB_HOST/);
   await assert.rejects(() => main('unknown'), /Unknown container command/);
 });
+
+test('production refuses demo seeding and implicit startup migrations', async () => {
+  const original = { APP_ENV: process.env.APP_ENV, SEED_DEMO_DATA: process.env.SEED_DEMO_DATA, RUN_MIGRATIONS: process.env.RUN_MIGRATIONS };
+  try {
+    process.env.APP_ENV = 'production';
+    await assert.rejects(() => main('seed'), /Production forbids/);
+    process.env.SEED_DEMO_DATA = 'true';
+    await assert.rejects(() => main('serve'), /Production forbids/);
+    delete process.env.SEED_DEMO_DATA;
+    process.env.RUN_MIGRATIONS = 'true';
+    await assert.rejects(() => main('serve'), /Production forbids/);
+  } finally {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});

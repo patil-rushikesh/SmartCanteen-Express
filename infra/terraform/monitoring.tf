@@ -34,6 +34,8 @@ resource "aws_cloudwatch_dashboard" "main" {
 }
 resource "aws_cloudwatch_metric_alarm" "ecs_cpu" {
   for_each            = local.components
+  alarm_actions       = [aws_sns_topic.operations.arn]
+  ok_actions          = [aws_sns_topic.operations.arn]
   alarm_name          = "${local.name}-${each.key}-cpu"
   namespace           = "AWS/ECS"
   metric_name         = "CPUUtilization"
@@ -47,6 +49,8 @@ resource "aws_cloudwatch_metric_alarm" "ecs_cpu" {
 }
 resource "aws_cloudwatch_metric_alarm" "unhealthy" {
   for_each            = local.components
+  alarm_actions       = [aws_sns_topic.operations.arn]
+  ok_actions          = [aws_sns_topic.operations.arn]
   alarm_name          = "${local.name}-${each.key}-unhealthy"
   namespace           = "AWS/ApplicationELB"
   metric_name         = "UnHealthyHostCount"
@@ -59,6 +63,8 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy" {
   treat_missing_data  = "notBreaching"
 }
 resource "aws_cloudwatch_metric_alarm" "database_storage" {
+  alarm_actions       = [aws_sns_topic.operations.arn]
+  ok_actions          = [aws_sns_topic.operations.arn]
   alarm_name          = "${local.name}-database-storage"
   namespace           = "AWS/RDS"
   metric_name         = "FreeStorageSpace"
@@ -72,4 +78,56 @@ resource "aws_cloudwatch_metric_alarm" "database_storage" {
 }
 output "monitoring_dashboard_url" {
   value = "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards/dashboard/${aws_cloudwatch_dashboard.main.dashboard_name}"
+}
+
+resource "aws_cloudwatch_metric_alarm" "latency" {
+  alarm_name          = "${local.name}-latency-p95"
+  namespace           = "AWS/ApplicationELB"
+  metric_name         = "TargetResponseTime"
+  dimensions          = { LoadBalancer = aws_lb.main.arn_suffix }
+  extended_statistic  = "p95"
+  period              = 300
+  evaluation_periods  = 3
+  datapoints_to_alarm = 2
+  threshold           = 1
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.operations.arn]
+  ok_actions          = [aws_sns_topic.operations.arn]
+}
+resource "aws_cloudwatch_metric_alarm" "error_rate" {
+  alarm_name          = "${local.name}-target-error-rate"
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 1
+  evaluation_periods  = 3
+  datapoints_to_alarm = 2
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.operations.arn]
+  ok_actions          = [aws_sns_topic.operations.arn]
+  metric_query {
+    id          = "rate"
+    expression  = "IF(requests >= 20, 100 * FILL(errors, 0) / requests, 0)"
+    label       = "Target 5xx percentage (minimum 20 requests)"
+    return_data = true
+  }
+  metric_query {
+    id = "errors"
+    metric {
+      namespace   = "AWS/ApplicationELB"
+      metric_name = "HTTPCode_Target_5XX_Count"
+      dimensions  = { LoadBalancer = aws_lb.main.arn_suffix }
+      period      = 300
+      stat        = "Sum"
+    }
+  }
+  metric_query {
+    id = "requests"
+    metric {
+      namespace   = "AWS/ApplicationELB"
+      metric_name = "RequestCount"
+      dimensions  = { LoadBalancer = aws_lb.main.arn_suffix }
+      period      = 300
+      stat        = "Sum"
+    }
+  }
 }

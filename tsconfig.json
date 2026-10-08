@@ -10,9 +10,17 @@
     "resolveJsonModule": true,
     "outDir": "dist",
     "rootDir": ".",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "noUnusedParameters": true,
+    "sourceMap": true,
+    "inlineSources": true
   },
-  "exclude": ["node_modules", "dist", "generated"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "generated"
+  ]
 }

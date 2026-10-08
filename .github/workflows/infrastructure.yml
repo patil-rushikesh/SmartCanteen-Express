@@ -10,7 +10,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: terraform-exam
+  group: terraform-infrastructure
   cancel-in-progress: false
 jobs:
   terraform:
@@ -24,6 +24,18 @@ jobs:
     env:
       TF_IN_AUTOMATION: 'true'
       TF_INPUT: 'false'
+      TF_VAR_environment: ${{ vars.DEPLOY_ENVIRONMENT || 'exam' }}
+      TF_VAR_github_environment: ${{ vars.DEPLOY_ENVIRONMENT || 'exam' }}
+      TF_VAR_enable_operating_schedule: 'true'
+      TF_VAR_daytime_replicas: ${{ vars.ECS_DESIRED_COUNT || '2' }}
+      TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+      TF_VAR_grafana_aws_account_id: ${{ vars.GRAFANA_AWS_ACCOUNT_ID }}
+      TF_VAR_grafana_external_id: ${{ vars.GRAFANA_EXTERNAL_ID }}
+      TF_VAR_high_availability: ${{ vars.HIGH_AVAILABILITY || 'false' }}
+      TF_VAR_database_multi_az: ${{ vars.DATABASE_MULTI_AZ || 'false' }}
+      TF_VAR_deletion_protection: ${{ vars.DELETION_PROTECTION || 'false' }}
+      TF_VAR_payment_mode: ${{ vars.PAYMENT_MODE || 'fake' }}
+      TF_STATE_KEY: ${{ vars.TF_STATE_KEY || 'smartcanteen/exam/terraform.tfstate' }}
       TF_VAR_enable_https: ${{ vars.ENABLE_HTTPS || 'false' }}
       TF_VAR_aws_region: ${{ vars.AWS_REGION }}
       TF_VAR_domain_name: ${{ vars.APP_DOMAIN }}
@@ -49,7 +61,7 @@ jobs:
           test -n "$TF_STATE_BUCKET"
           terraform -chdir=infra/terraform init -lockfile=readonly \
             -backend-config="bucket=$TF_STATE_BUCKET" \
-            -backend-config="key=smartcanteen/exam/terraform.tfstate" \
+            -backend-config="key=$TF_STATE_KEY" \
             -backend-config="region=$AWS_REGION" \
             -backend-config="encrypt=true" -backend-config="use_lockfile=true"
       - run: terraform -chdir=infra/terraform validate

@@ -13,8 +13,8 @@ FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=8080 PM2_HOME=/tmp/pm2
 ENV PATH="/app/node_modules/.bin:$PATH"
 WORKDIR /app
-RUN apk add --no-cache ca-certificates && mkdir -p /app/certs && \
-    wget -q https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -O /app/certs/rds.pem && \
+RUN apk add --no-cache ca-certificates curl && mkdir -p /app/certs && \
+    curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /app/certs/rds.pem && \
     awk '/-----BEGIN CERTIFICATE-----/ {n++; file="/usr/local/share/ca-certificates/rds-" n ".crt"} file {print > file} /-----END CERTIFICATE-----/ {close(file); file=""}' /app/certs/rds.pem && \
     update-ca-certificates && \
     addgroup -S nodejs && adduser -S smartcanteen -G nodejs

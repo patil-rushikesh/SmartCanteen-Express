@@ -1,0 +1,3 @@
+cfn-lint==1.56.3
+coverage==7.10.7
+-r ansible/requirements.in

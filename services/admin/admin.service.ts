@@ -16,7 +16,7 @@ const createSlug = (value: string) =>
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .split('-').filter(Boolean).join('-');
 
 export class AdminService {
   constructor(

@@ -9,3 +9,7 @@ payment_mode = "razorpay"
 domain_name = "canteen.example.com"
 certificate_arn = "arn:aws:acm:ap-south-1:123456789012:certificate/REPLACE_ME"
 github_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+
+alert_email = "ops@example.com"
+daytime_replicas = 2
+enable_operating_schedule = true

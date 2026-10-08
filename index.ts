@@ -5,9 +5,11 @@ import paymentWebhookRoutes from './modules/payment/routes.js';
 import { apiRouter } from './routes/index.js';
 import { apiRateLimit } from './middlewares/rate-limit.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
+import { cacheReady, closeCache } from './services/shared/cache.service.js';
 import { corsOrigins, env } from './utils/env.js';
 
 const app = express();
+app.disable('x-powered-by');
 app.set('trust proxy', env.TRUST_PROXY_HOPS);
 app.use((req, res, next) => {
   const started = Date.now();
@@ -39,7 +41,10 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 app.get('/api/ready', async (_req: Request, res: Response) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await Promise.race([
+      Promise.all([prisma.$queryRaw`SELECT 1`, cacheReady()]),
+      new Promise((_, reject) => { const timeout = setTimeout(() => reject(new Error('Readiness timeout')), 3000); timeout.unref(); })
+    ]);
     res.status(200).json({ status: 'ready' });
   } catch {
     res.status(503).json({ status: 'unavailable' });
@@ -56,6 +61,8 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 const server = app.listen(env.PORT, () => {
+  const address = server.address();
+  if (process.send && address && typeof address !== 'string') process.send({ port: address.port });
   console.log(`[Server] Smart Canteen Backend running at http://localhost:${env.PORT}`);
 });
 
@@ -64,7 +71,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     const timeout = setTimeout(() => process.exit(1), 25_000);
     timeout.unref();
     server.close(() => {
-      void prisma.$disconnect().finally(() => process.exit(0));
+      void Promise.all([prisma.$disconnect(), closeCache()]).finally(() => process.exit(0));
     });
   });
 }

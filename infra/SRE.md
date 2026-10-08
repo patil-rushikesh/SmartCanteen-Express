@@ -14,6 +14,13 @@ HTTP with simulated payments; it must not be represented as production.
   and retries a failed start/stop on the next invocation. Transitions are not
   instantaneous: AWS startup, health checks and draining add delay. Confirm actual
   startup duration in a live rehearsal before promising readiness precisely at 06:00.
+- The controller uses shared Lambda capacity by default because small AWS account
+  quotas cannot reserve concurrency. Its 45-second timeout is shorter than the
+  one-minute cadence. Duplicate deliveries reconcile current time and AWS state;
+  transient AWS state-transition conflicts retry on later invocations. Set
+  `OPERATIONS_RESERVED_CONCURRENCY=1` only after confirming the account has spare
+  capacity above AWS's required unreserved minimum. Never use zero: it disables
+  the controller. The heartbeat alarm detects missed reconciliation.
 - Application releases are admitted between **06:00 and 16:15**. The 45-minute buffer
   protects the 17:00 shutdown. CI still runs on all pull requests/main commits.
   The daily 06:15 GitHub run builds/tests/scans/deploys the latest `main`; intermediate

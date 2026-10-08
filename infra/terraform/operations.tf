@@ -16,6 +16,15 @@ variable "alert_email" {
   default     = ""
   description = "Confirm the SNS subscription email after apply."
 }
+variable "operations_reserved_concurrency" {
+  type        = number
+  default     = -1
+  description = "Use shared Lambda capacity (-1) for small account quotas; reserve a positive count only when the account has sufficient unreserved capacity."
+  validation {
+    condition     = var.operations_reserved_concurrency == -1 || (var.operations_reserved_concurrency >= 1 && floor(var.operations_reserved_concurrency) == var.operations_reserved_concurrency)
+    error_message = "Use -1 for shared capacity or a positive integer reservation. Zero would disable the scheduler."
+  }
+}
 resource "aws_sns_topic" "operations" {
   name              = "${local.name}-operations"
   kms_master_key_id = aws_kms_key.alerts.arn
@@ -63,7 +72,7 @@ resource "aws_lambda_function" "operations" {
   filename                       = data.archive_file.operations.output_path
   source_code_hash               = data.archive_file.operations.output_base64sha256
   timeout                        = 45
-  reserved_concurrent_executions = 1
+  reserved_concurrent_executions = var.operations_reserved_concurrency
   environment {
     variables = {
       CLUSTER          = aws_ecs_cluster.main.name

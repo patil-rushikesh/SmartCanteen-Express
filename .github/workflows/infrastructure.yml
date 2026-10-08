@@ -27,6 +27,7 @@ jobs:
       TF_VAR_environment: ${{ vars.DEPLOY_ENVIRONMENT || 'exam' }}
       TF_VAR_github_environment: ${{ vars.DEPLOY_ENVIRONMENT || 'exam' }}
       TF_VAR_enable_operating_schedule: 'true'
+      TF_VAR_operations_reserved_concurrency: ${{ vars.OPERATIONS_RESERVED_CONCURRENCY || '-1' }}
       TF_VAR_daytime_replicas: ${{ vars.ECS_DESIRED_COUNT || '2' }}
       TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
       TF_VAR_grafana_aws_account_id: ${{ vars.GRAFANA_AWS_ACCOUNT_ID }}

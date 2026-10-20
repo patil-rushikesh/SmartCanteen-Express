@@ -48,12 +48,12 @@ resource "grafana_dashboard" "operations" {
       id          = i + 1, title = m.title, type = "timeseries",
       gridPos     = { x = (i % 2) * 12, y = floor(i / 2) * 8, w = 12, h = 8 },
       datasource  = { type = "cloudwatch", uid = grafana_data_source.cloudwatch.uid },
-      fieldConfig = { defaults = merge({ unit = m.unit }, i == 4 ? { min = 0, thresholds = { mode = "absolute", steps = [{ value = 0, color = "green" }, { value = 1, color = "yellow" }, { value = 5, color = "red" }] } } : {}), overrides = [] },
-      targets = i == 4 ? local.alb_error_targets : [{ refId = "A", queryMode = "Metrics", metricQueryType = 0, metricEditorMode = 0,
+      fieldConfig = { defaults = merge({ unit = m.unit }, jsondecode(i == 4 ? jsonencode({ min = 0, thresholds = { mode = "absolute", steps = [{ value = 0, color = "green" }, { value = 1, color = "yellow" }, { value = 5, color = "red" }] } }) : "{}")), overrides = [] },
+      targets = jsondecode(i == 4 ? jsonencode(local.alb_error_targets) : jsonencode([{ refId = "A", queryMode = "Metrics", metricQueryType = 0, metricEditorMode = 0,
         region     = var.aws_region, namespace = m.namespace, metricName = m.metric,
         statistic  = m.statistic, period = "60", matchExact = true,
         dimensions = { for key, value in m.dimensions : key => [value] }
-      }]
+      }]))
       }], var.prometheus_datasource_uid == "" ? [] : [for i, m in local.prometheus_panels : {
       id          = 100 + i, title = m.title, type = "timeseries",
       gridPos     = { x = (i % 2) * 12, y = 32 + floor(i / 2) * 8, w = 12, h = 8 },

@@ -31,7 +31,7 @@ locals {
     { title = "Frontend availability (power ON)", namespace = "SmartCanteen/${var.cluster_name}", metric = "Availability", statistic = "Average", dimensions = { Component = "frontend" }, unit = "percentunit" },
     { title = "Backend CPU", namespace = "AWS/ECS", metric = "CPUUtilization", statistic = "Average", dimensions = { ClusterName = var.cluster_name, ServiceName = "${var.cluster_name}-backend" }, unit = "percent" },
     { title = "Backend memory", namespace = "AWS/ECS", metric = "MemoryUtilization", statistic = "Average", dimensions = { ClusterName = var.cluster_name, ServiceName = "${var.cluster_name}-backend" }, unit = "percent" },
-    { title = "ALB target 5xx", namespace = "AWS/ApplicationELB", metric = "HTTPCode_Target_5XX_Count", statistic = "Sum", dimensions = { LoadBalancer = var.load_balancer_arn_suffix }, unit = "short" },
+    { title = "ALB target 5xx error rate", namespace = "AWS/ApplicationELB", metric = "HTTPCode_Target_5XX_Count", statistic = "Sum", dimensions = { LoadBalancer = var.load_balancer_arn_suffix }, unit = "percent" },
     { title = "ALB p95 latency", namespace = "AWS/ApplicationELB", metric = "TargetResponseTime", statistic = "p95", dimensions = { LoadBalancer = var.load_balancer_arn_suffix }, unit = "s" },
     { title = "Database free storage", namespace = "AWS/RDS", metric = "FreeStorageSpace", statistic = "Minimum", dimensions = { DBInstanceIdentifier = var.database_identifier }, unit = "bytes" },
     { title = "Scheduler heartbeat", namespace = "SmartCanteen/${var.cluster_name}", metric = "OperationsHeartbeat", statistic = "Sum", dimensions = {}, unit = "short" }
@@ -48,8 +48,8 @@ resource "grafana_dashboard" "operations" {
       id          = i + 1, title = m.title, type = "timeseries",
       gridPos     = { x = (i % 2) * 12, y = floor(i / 2) * 8, w = 12, h = 8 },
       datasource  = { type = "cloudwatch", uid = grafana_data_source.cloudwatch.uid },
-      fieldConfig = { defaults = { unit = m.unit }, overrides = [] },
-      targets = [{ refId = "A", queryMode = "Metrics", metricQueryType = 0, metricEditorMode = 0,
+      fieldConfig = { defaults = merge({ unit = m.unit }, i == 4 ? { min = 0, thresholds = { mode = "absolute", steps = [{ value = 0, color = "green" }, { value = 1, color = "yellow" }, { value = 5, color = "red" }] } } : {}), overrides = [] },
+      targets = i == 4 ? local.alb_error_targets : [{ refId = "A", queryMode = "Metrics", metricQueryType = 0, metricEditorMode = 0,
         region     = var.aws_region, namespace = m.namespace, metricName = m.metric,
         statistic  = m.statistic, period = "60", matchExact = true,
         dimensions = { for key, value in m.dimensions : key => [value] }

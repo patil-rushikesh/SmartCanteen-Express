@@ -18,3 +18,22 @@ locals {
     { title = "Node.js event loop lag per task", unit = "s", expr = "smartcanteen_nodejs_eventloop_lag_seconds{${local.prom_selector}}" }
   ]
 }
+
+# Preserve the error-percentage panel already configured in the live dashboard.
+locals {
+  alb_error_targets = concat([for q in [
+    { refId = "A", id = "m5xx", metric = "HTTPCode_Target_5XX_Count" },
+    { refId = "B", id = "mreq", metric = "RequestCount" }
+    ] : {
+    refId      = q.refId, id = q.id, hide = true, metricName = q.metric,
+    queryMode  = "Metrics", metricQueryType = 0, metricEditorMode = 0,
+    namespace  = "AWS/ApplicationELB", statistic = "Sum", period = "",
+    region     = var.aws_region, matchExact = true,
+    dimensions = { LoadBalancer = [var.load_balancer_arn_suffix] }
+    }], [{
+    refId      = "C", id = "errpct", hide = false, label = "5xx error rate",
+    expression = "IF(mreq > 0, 100 * FILL(m5xx, 0) / mreq, 0)",
+    queryMode  = "Metrics", metricQueryType = 0, metricEditorMode = 1,
+    region     = var.aws_region, period = ""
+  }])
+}

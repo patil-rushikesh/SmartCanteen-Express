@@ -54,9 +54,11 @@ jobs:
         run: |
           docker run --rm --network canteen-ci -e DATABASE_URL smartcanteen-backend:ci migrate
           docker run -d --name ci-api --network canteen-ci -p 18080:8080 \
-            -e DATABASE_URL -e PAYMENT_PROVIDER_MODE=fake smartcanteen-backend:ci
+            -e DATABASE_URL -e PAYMENT_PROVIDER_MODE=fake -e PROMETHEUS_ENABLED=true smartcanteen-backend:ci
           curl --fail --retry 20 --retry-delay 2 --retry-all-errors http://localhost:18080/api/ready
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:18080/api/auth/me)" = 401
+          docker exec ci-api node -e 'fetch("http://127.0.0.1:9091/metrics").then(async r => { if (!r.ok || !(await r.text()).includes("smartcanteen_http_requests_total")) process.exit(1); })'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:18080/metrics)" = 404
       - name: Container diagnostics
         if: failure()
         run: docker logs ci-api 2>&1 || true

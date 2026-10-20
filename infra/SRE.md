@@ -188,3 +188,54 @@ solely to obtain a green gate.
 References: [CloudWatch IAM actions](https://docs.aws.amazon.com/service-authorization/latest/reference/list_cloudwatch.html),
 [namespace restrictions](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/iam-cw-condition-keys-namespace.html),
 [encrypted CloudWatch notifications](https://repost.aws/knowledge-center/cloudwatch-configure-alarm-sns).
+
+## Prometheus application metrics
+
+Each enabled backend task runs Prometheus as a nonessential sidecar, scraping
+`127.0.0.1:9091/metrics` every 30 seconds and sending samples over HTTPS to Grafana
+Cloud. The API and Prometheus UI bind their monitoring listeners to loopback;
+there is no public metrics route or security-group ingress. Metrics contain route
+templates, methods and response status codes, never raw URLs, query strings or
+customer identifiers. Health probes are excluded from request counters.
+
+Set these backend GitHub `infrastructure` environment variables:
+
+- `ENABLE_PROMETHEUS=true`
+- `GRAFANA_METRICS_WRITE_URL`: the Cloud Prometheus remote-write endpoint
+- `GRAFANA_METRICS_USERNAME`: the numeric metrics instance ID
+
+Store a stack-scoped `metrics:write` token as an SSM SecureString named
+`/smartcanteen/exam/GRAFANA_METRICS_WRITE_TOKEN` (use the matching environment prefix
+outside exam). ECS injects it only into the Prometheus container. Terraform stores
+its ARN, not its value. No additional AWS access key is needed: deployment uses
+GitHub OIDC and runtime secret retrieval uses the existing ECS execution role.
+
+Apply the AWS infrastructure plan, then set `ECS_TASK_TEMPLATE` in the backend
+release environment to the **backend ARN** from `task_definition_templates`.
+This is required when introducing/removing a sidecar: releases otherwise clone
+the running task definition. Turn application power ON and run the backend release.
+After the rollout, remove that temporary variable so later releases clone the
+current service revision again. A Terraform apply alone does not update the ECS
+service because its task definition is deliberately ignored by Terraform.
+
+Set `GRAFANA_PROMETHEUS_DATASOURCE_UID` in the `observability` environment to the
+existing Cloud Prometheus datasource UID, then plan/apply **Grafana provisioning**.
+Six PromQL panels are appended to the same SmartCanteen Reliability dashboard:
+scrape health, request rate, 5xx percentage, p95 duration, process resident memory,
+and event-loop lag. Request/latency graphs need traffic; a rate window needs several
+scrapes. With no requests, an error percentage is undefined rather than healthy 0%.
+The scrape-health panel checks the metrics endpoint, not database readiness.
+
+The application power flag also stops the sidecars. Each task has a unique
+`collector` external label, so backend replicas do not overwrite one another's
+series. CloudWatch still supplies AWS metrics, availability and controller heartbeat.
+Prometheus has a 256 MiB memory limit and two-hour/256 MB local retention. Local
+storage is ephemeral: samples not yet delivered when a task is replaced or stopped
+can be lost. Grafana Cloud retains delivered samples under the stack's plan.
+
+Rotate the 30-day writer token before expiry: update the SSM parameter, deploy new
+backend tasks to pick up the new secret, verify `up{job="smartcanteen-backend"}`
+for every running task, then revoke the old token. Check the `prometheus` log stream
+in `/ecs/smartcanteen-exam/backend` for remote-write authentication failures.
+For rollback, disable `ENABLE_PROMETHEUS`, apply Terraform and deploy using its new
+task template; existing CloudWatch monitoring continues independently.

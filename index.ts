@@ -8,7 +8,10 @@ import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
 import { cacheReady, closeCache } from './services/shared/cache.service.js';
 import { corsOrigins, env } from './utils/env.js';
 
+import { observeRequests, startMetricsServer } from './services/shared/metrics.js';
+
 const app = express();
+app.use(observeRequests);
 app.disable('x-powered-by');
 app.set('trust proxy', env.TRUST_PROXY_HOPS);
 app.use((req, res, next) => {
@@ -66,10 +69,13 @@ const server = app.listen(env.PORT, () => {
   console.log(`[Server] Smart Canteen Backend running at http://localhost:${env.PORT}`);
 });
 
+const metricsServer = process.env.PROMETHEUS_ENABLED === 'true' ? startMetricsServer() : undefined;
+
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.once(signal, () => {
     const timeout = setTimeout(() => process.exit(1), 25_000);
     timeout.unref();
+    metricsServer?.close();
     server.close(() => {
       void Promise.all([prisma.$disconnect(), closeCache()]).finally(() => process.exit(0));
     });

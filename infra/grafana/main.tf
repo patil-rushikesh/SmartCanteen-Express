@@ -44,7 +44,7 @@ resource "grafana_dashboard" "operations" {
     tags        = ["smartcanteen", "sre"], timezone = "Asia/Kolkata", refresh = "1m",
     time        = { from = "now-12h", to = "now" },
     description = "Availability is measured while APPLICATION_ENABLED=true. Missing samples while OFF are expected. Read the SRE runbook before assessing SLOs.",
-    panels = [for i, m in local.metrics : {
+    panels = concat([for i, m in local.metrics : {
       id          = i + 1, title = m.title, type = "timeseries",
       gridPos     = { x = (i % 2) * 12, y = floor(i / 2) * 8, w = 12, h = 8 },
       datasource  = { type = "cloudwatch", uid = grafana_data_source.cloudwatch.uid },
@@ -54,7 +54,13 @@ resource "grafana_dashboard" "operations" {
         statistic  = m.statistic, period = "60", matchExact = true,
         dimensions = { for key, value in m.dimensions : key => [value] }
       }]
-    }]
+      }], var.prometheus_datasource_uid == "" ? [] : [for i, m in local.prometheus_panels : {
+      id          = 100 + i, title = m.title, type = "timeseries",
+      gridPos     = { x = (i % 2) * 12, y = 32 + floor(i / 2) * 8, w = 12, h = 8 },
+      datasource  = { type = "prometheus", uid = var.prometheus_datasource_uid },
+      fieldConfig = { defaults = { unit = m.unit }, overrides = [] },
+      targets     = [{ refId = "A", expr = m.expr, range = true, legendFormat = "{{collector}}" }]
+    }])
   })
 }
 output "dashboard_url" { value = grafana_dashboard.operations.url }

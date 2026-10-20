@@ -24,6 +24,7 @@ resource "aws_cloudwatch_log_group" "app" {
 }
 locals {
   backend_environment = {
+    PROMETHEUS_ENABLED    = tostring(var.enable_prometheus)
     APP_ENV               = var.environment
     NODE_ENV              = "production", PORT = "8080", TRUST_PROXY_HOPS = "1"
     CORS_ORIGIN           = local.application_url
@@ -53,7 +54,7 @@ resource "aws_ecs_task_definition" "app" {
     operating_system_family = "LINUX"
     cpu_architecture        = "X86_64"
   }
-  container_definitions = jsonencode([{
+  container_definitions = jsonencode(concat([{
     name             = each.key
     image            = "${aws_ecr_repository.app[each.key].repository_url}:bootstrap"
     essential        = true
@@ -63,7 +64,7 @@ resource "aws_ecs_task_definition" "app" {
     environment      = [for k, v in(each.key == "backend" ? local.backend_environment : local.frontend_environment) : { name = k, value = v }]
     secrets          = each.key == "backend" ? [for key in concat(["DB_PASSWORD"], local.app_secret_keys) : { name = key, valueFrom = "${local.parameter_arn_prefix}/${key}" }] : []
     logConfiguration = { logDriver = "awslogs", options = { awslogs-group = aws_cloudwatch_log_group.app[each.key].name, awslogs-region = var.aws_region, awslogs-stream-prefix = "ecs" } }
-  }])
+  }], each.key == "backend" && var.enable_prometheus ? [local.prometheus_container] : []))
 }
 resource "aws_ecs_service" "app" {
   for_each        = local.components

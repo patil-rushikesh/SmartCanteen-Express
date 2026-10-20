@@ -27,6 +27,8 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       TF_STATE_KEY: ${{ vars.GRAFANA_STATE_KEY || 'smartcanteen/exam/grafana.tfstate' }}
+      TF_VAR_prometheus_datasource_uid: ${{ vars.GRAFANA_PROMETHEUS_DATASOURCE_UID }}
+      TF_VAR_environment: ${{ vars.DEPLOY_ENVIRONMENT || 'exam' }}
       TF_VAR_aws_region: ${{ vars.AWS_REGION }}
       TF_VAR_cloudwatch_role_arn: ${{ vars.GRAFANA_CLOUDWATCH_ROLE_ARN }}
       TF_VAR_cluster_name: ${{ vars.ECS_CLUSTER }}

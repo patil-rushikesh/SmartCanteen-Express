@@ -45,6 +45,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
+    "@prometheus-io/client": "^0.16.1",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
